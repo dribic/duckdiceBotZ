@@ -1,0 +1,20 @@
+/.zig-cache/
+/zig-out/
+/answers/
+/patches/healed/
+/output/
+.progress.txt
+
+# Leave this in here for older zig versions
+/zig-cache/
+
+# Ignore Windows executables
+*.exe
+
+# Ignore build by-products for simple programs that don't need zig init.
+*.pdb
+*.obj
+
+# API key file(s)
+API
+API.txt
