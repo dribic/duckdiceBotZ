@@ -2,7 +2,10 @@ const std = @import("std");
 const types = @import("types.zig");
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
     const alloc = std.heap.page_allocator;
     var arena = std.heap.ArenaAllocator.init(alloc);
     const allocator = arena.allocator();
@@ -11,14 +14,12 @@ pub fn main() !void {
         try stdout.print("API file error: {any}\n", .{err});
         return;
     };
-    var reader = std.io.bufferedReader(file.reader());
-    var in_stream = reader.reader();
-    var line_buffer: [124]u8 = undefined;
 
-    const api = try in_stream.readUntilDelimiterOrEof(&line_buffer, '\n');
+    const api_raw = try file.readToEndAlloc(allocator, 122);
+    const api = std.mem.trim(u8, api_raw, " \r\n\t");
 
     var url_buffer: [1022]u8 = undefined;
-    const url = try std.fmt.bufPrint(&url_buffer, "https://duckdice.io/api/bot/user-info?api_key={s}", .{api.?});
+    const url = try std.fmt.bufPrint(&url_buffer, "https://duckdice.io/api/bot/user-info?api_key={s}", .{api});
     file.close();
     defer arena.deinit();
 
@@ -32,12 +33,12 @@ pub fn main() !void {
 
     const response_body = try get(url, headers, &client, allocator);
 
-    var result = try std.json.parseFromSlice(types.Response, allocator, response_body.items, .{ .ignore_unknown_fields = true });
+    var result = try std.json.parseFromSlice(types.Response, allocator, response_body, .{ .ignore_unknown_fields = true });
 
     defer result.deinit();
 
     if (result.value.username) |username| {
-        try stdout.print("Parsed user data for: {s}\n", .{username});
+        try stdout.print("\nParsed user data for: {s}\n", .{username});
     } else {
         try stdout.print("User data loaded, but username field was missing.\n", .{});
     }
@@ -58,6 +59,8 @@ pub fn main() !void {
     } else {
         try stdout.print("User data loaded, but the balances field was missing.\n", .{});
     }
+
+    try stdout.flush();
 }
 
 fn get(
@@ -65,23 +68,29 @@ fn get(
     headers: []const std.http.Header,
     client: *std.http.Client,
     allocator: std.mem.Allocator,
-) !std.ArrayList(u8) {
-    const stdout = std.io.getStdOut().writer();
+) ![]u8 {
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
     const limit = std.mem.indexOf(u8, url, "=").?;
     try stdout.print("\nURL: {s}<API-KEY> GET\n", .{url[0 .. limit + 1]});
 
-    var response_body = std.ArrayList(u8).init(allocator);
+    var body_writter: std.io.Writer.Allocating = .init(allocator);
+    defer body_writter.deinit();
 
     try stdout.print("Sending request...\n", .{});
     const response = try client.fetch(.{
         .method = .GET,
         .location = .{ .url = url },
         .extra_headers = headers, //put these here instead of .headers
-        .response_storage = .{ .dynamic = &response_body }, // this allows us to get a response of unknown size
+        .response_writer = &body_writter.writer, // this allows us to get a response of unknown size
     });
 
-    try stdout.print("Response Status: {d}\n Response Body:{s}\n", .{ response.status, response_body.items });
+    try stdout.flush();
+
+    const slice = try body_writter.toOwnedSlice();
+    try stdout.print("Response Status: {d}\nResponse Body:{s}\n", .{ response.status, slice });
 
     // Return the response body to the caller
-    return response_body;
+    return slice;
 }
