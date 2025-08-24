@@ -18,8 +18,11 @@ pub fn main() !void {
     const api_raw = try file.readToEndAlloc(allocator, 122);
     const api = std.mem.trim(u8, api_raw, " \r\n\t");
 
-    var url_buffer: [1022]u8 = undefined;
-    const url = try std.fmt.bufPrint(&url_buffer, "https://duckdice.io/api/bot/user-info?api_key={s}", .{api});
+    const duckdice_base_url = "https://duckdice.io/api/";
+    var user_info_url_buffer: [512]u8 = undefined;
+    const user_info_url = try std.fmt.bufPrint(&user_info_url_buffer, "{s}bot/user-info?api_key={s}", .{ duckdice_base_url, api });
+
+    // Cleanups
     file.close();
     defer arena.deinit();
 
@@ -27,18 +30,14 @@ pub fn main() !void {
         .allocator = allocator,
     };
 
-    const headers = &[_]std.http.Header{
-        .{ .name = "X-Custom-Header", .value = "application" },
-    };
+    const response_body = try get(user_info_url, &client, allocator);
 
-    const response_body = try get(url, headers, &client, allocator);
-
-    var result = try std.json.parseFromSlice(types.Response, allocator, response_body, .{ .ignore_unknown_fields = true });
+    var result = try std.json.parseFromSlice(types.UserInfoResponse, allocator, response_body, .{ .ignore_unknown_fields = true });
 
     defer result.deinit();
 
     if (result.value.username) |username| {
-        try stdout.print("\nParsed user data for: {s}\n", .{username});
+        try stdout.print("Parsed user data for: {s}\n", .{username});
     } else {
         try stdout.print("User data loaded, but username field was missing.\n", .{});
     }
@@ -65,7 +64,6 @@ pub fn main() !void {
 
 fn get(
     url: []const u8,
-    headers: []const std.http.Header,
     client: *std.http.Client,
     allocator: std.mem.Allocator,
 ) ![]u8 {
@@ -74,6 +72,10 @@ fn get(
     const stdout = &stdout_writer.interface;
     const limit = std.mem.indexOf(u8, url, "=").?;
     try stdout.print("\nURL: {s}<API-KEY> GET\n", .{url[0 .. limit + 1]});
+
+    const headers = &[_]std.http.Header{
+        .{ .name = "X-Custom-Header", .value = "application" },
+    };
 
     var body_writter: std.io.Writer.Allocating = .init(allocator);
     defer body_writter.deinit();
@@ -86,10 +88,10 @@ fn get(
         .response_writer = &body_writter.writer, // this allows us to get a response of unknown size
     });
 
-    try stdout.flush();
-
     const slice = try body_writter.toOwnedSlice();
     try stdout.print("Response Status: {d}\nResponse Body:{s}\n", .{ response.status, slice });
+
+    try stdout.flush();
 
     // Return the response body to the caller
     return slice;
