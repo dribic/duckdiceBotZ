@@ -1,20 +1,46 @@
 const std = @import("std");
 const net = @import("net.zig");
+const aritmethic = @import("arithmetic.zig");
 
 const PricesMap = std.StringHashMap(f128);
 const CoinsMap = std.StringHashMap(PricesMap);
 
-fn addingCoinNames(names_map: *std.StringHashMap([]const u8)) !void {
-    try names_map.put("ETH", "ethereum");
-    try names_map.put("TRX", "tron");
-    try names_map.put("USDT", "tether");
+pub fn loadCoinMap(allocator: std.mem.Allocator) !std.StringHashMap([]const u8) {
+    var map = std.StringHashMap([]const u8).init(allocator);
+
+    // --- Read file ---
+    const file = try std.fs.cwd().openFile("dd-coins.json", .{ .mode = .read_only });
+    defer file.close();
+
+    const json_bytes = try file.readToEndAlloc(allocator, 8192);
+    defer allocator.free(json_bytes);
+
+    // --- Parse JSON ---
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
+    defer parsed.deinit();
+
+    if (parsed.value != .object) {
+        return error.InvalidJson;
+    }
+
+    var it = parsed.value.object.iterator();
+    while (it.next()) |entry| {
+        const symbol = entry.key_ptr.*;
+        const cg_name_value = entry.value_ptr.*;
+        switch (cg_name_value) {
+            .string => |cg_name| {
+                try map.put(symbol, cg_name);
+            },
+            else => {},
+        }
+    }
+
+    return map;
 }
 
-pub fn calculateMinimum(allocator: std.mem.Allocator, dd_coin_name: []const u8) !u128 {
-    var coingecko_names = std.StringHashMap([]const u8).init(allocator);
+pub fn calculateMinimum(allocator: std.mem.Allocator, client: *std.http.Client, dd_coin_name: []const u8) !u128 {
+    var coingecko_names = try loadCoinMap(allocator);
     defer coingecko_names.deinit();
-
-    try addingCoinNames(&coingecko_names);
 
     const coin = coingecko_names.get(dd_coin_name) orelse dd_coin_name;
 
@@ -24,12 +50,7 @@ pub fn calculateMinimum(allocator: std.mem.Allocator, dd_coin_name: []const u8) 
         try std.fmt.allocPrint(allocator, "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,{s}&vs_currencies=usd", .{coin});
     defer allocator.free(url);
 
-    var client = std.http.Client{
-        .allocator = allocator,
-    };
-    defer client.deinit();
-
-    const json_data = try net.getCoingecko(url, &client, allocator);
+    const json_data = try net.getCoingecko(url, client, allocator);
 
     // --- Parse into JSON Value ---
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_data, .{});
@@ -74,18 +95,24 @@ pub fn calculateMinimum(allocator: std.mem.Allocator, dd_coin_name: []const u8) 
         try coins.put(coin_name, prices);
     }
 
-    // --- Example usage ---
-    if (coins.get("bitcoin")) |btc_prices| {
-        if (btc_prices.get("usd")) |usd| {
-            std.debug.print("Bitcoin price (USD): {d}\n", .{usd});
-        }
+    const btc_price: f128 = getUsdPrice(&coins, "bitcoin") orelse 0;
+
+    if (btc_price == 0) {
+        return error.CoinGeckoUnavailable;
     }
 
-    if (coins.get(coin)) |coin_prices| {
-        if (coin_prices.get("usd")) |usd| {
-            std.debug.print("{s} price (USD): {d}\n", .{ coin, usd });
-        }
-    } else {
-        std.debug.print("{s} is not a valid coin on CoinGecko!\n", .{coin});
+    const other_coin_price = getUsdPrice(&coins, coin);
+
+    if (other_coin_price) |usd| {
+        return aritmethic.satoshiEquivalent(btc_price, usd);
     }
+
+    return error.CoinNotFound;
+}
+
+fn getUsdPrice(map: *const CoinsMap, name: []const u8) ?f128 {
+    if (map.get(name)) |prices| {
+        return prices.get("usd");
+    }
+    return null;
 }

@@ -1,6 +1,8 @@
 const std = @import("std");
 const types = @import("types.zig");
 const net = @import("net.zig");
+const cg = @import("coingecko.zig");
+const aritmethic = @import("arithmetic.zig");
 
 pub fn main() !void {
     var stdout_buffer: [1024]u8 = undefined;
@@ -59,6 +61,22 @@ pub fn main() !void {
     } else {
         try stdout.print("User data loaded, but the balances field was missing.\n", .{});
     }
+    try stdout.flush();
+
+    // Test only
+    const coin_name = "USDC";
+    const minimum: u128 = if (std.mem.eql(u8, coin_name, "DECOY")) 1_000_000 else cg.calculateMinimum(allocator, &client, coin_name) catch |err| blk: {
+        try stdout.print(
+            "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
+            .{ coin_name, err },
+        );
+        try stdout.flush();
+        break :blk 1;
+    };
+
+    const minimum_as_f128 = aritmethic.intToFloat(minimum);
+
+    try stdout.print("Minimum bet set to: {d:.8} {s}\n", .{ minimum_as_f128, coin_name });
 
     try stdout.flush();
 }
