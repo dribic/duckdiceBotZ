@@ -1,4 +1,5 @@
 const std = @import("std");
+const net = @import("net.zig");
 
 const PricesMap = std.StringHashMap(f128);
 const CoinsMap = std.StringHashMap(PricesMap);
@@ -28,7 +29,7 @@ pub fn calculateMinimum(allocator: std.mem.Allocator, dd_coin_name: []const u8) 
     };
     defer client.deinit();
 
-    const json_data = try getCoingecko(url, &client, allocator);
+    const json_data = try net.getCoingecko(url, &client, allocator);
 
     // --- Parse into JSON Value ---
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_data, .{});
@@ -87,23 +88,4 @@ pub fn calculateMinimum(allocator: std.mem.Allocator, dd_coin_name: []const u8) 
     } else {
         std.debug.print("{s} is not a valid coin on CoinGecko!\n", .{coin});
     }
-}
-
-fn getCoingecko(
-    url: []const u8,
-    client: *std.http.Client,
-    allocator: std.mem.Allocator,
-) ![]u8 {
-    var body_writter: std.io.Writer.Allocating = .init(allocator);
-    defer body_writter.deinit();
-
-    _ = try client.fetch(.{
-        .method = .GET,
-        .location = .{ .url = url },
-        .response_writer = &body_writter.writer, // this allows us to get a response of unknown size
-    });
-
-    const slice = try body_writter.toOwnedSlice();
-
-    return slice;
 }
