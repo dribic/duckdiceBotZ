@@ -25,25 +25,27 @@ pub fn placeABet(
     faucet: bool,
     chance: []const u8,
     is_high: bool,
-    client: *std.http.Client,
     allocator: std.mem.Allocator,
 ) !bool {
-    var buf = try allocator.alloc(u8, 512);
+    var buf: [64]u8 = undefined;
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
     const bet = types.OriginalDicePlayRequest{ .amount = amount, .chance = chance, .symbol = currency, .isHigh = is_high, .faucet = faucet };
 
-    var json_buf = std.ArrayList(u8){};
-    defer json_buf.deinit(allocator);
+    var body_writter: std.io.Writer.Allocating = .init(allocator);
+    defer body_writter.deinit();
 
-    var stream = json_buf.writer(allocator);
+    var s = std.json.Stringify{
+        .writer = &body_writter.writer,
+        .options = .{ .whitespace = .minified, .emit_null_optional_fields = false }, // or .indent_2 for pretty
+    };
+    try s.write(bet);
 
-    var stringify = std.json.Stringify(.{}, &stream);
-    try stringify.print(bet);
+    const slice = try body_writter.toOwnedSlice();
 
-    const response = try net.post(url, json_buf.items, client, allocator);
+    const response = try net.postUsingCurl(allocator, url, slice);
     var result = try std.json.parseFromSlice(types.DicePlayResponse, allocator, response, .{ .ignore_unknown_fields = true });
     defer result.deinit();
 
-    return result.value.Bet.result;
+    return result.value.bet.?.result;
 }

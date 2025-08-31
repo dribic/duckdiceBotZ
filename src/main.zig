@@ -18,6 +18,7 @@ const types = @import("types.zig");
 const net = @import("net.zig");
 const cg = @import("coingecko.zig");
 const aritmethic = @import("arithmetic.zig");
+const betting = @import("betting.zig");
 
 pub fn main() !void {
     var stdout_buffer: [1024]u8 = undefined;
@@ -39,6 +40,9 @@ pub fn main() !void {
     const duckdice_base_url = "https://duckdice.io/api/";
     var user_info_url_buffer: [512]u8 = undefined;
     const user_info_url = try std.fmt.bufPrint(&user_info_url_buffer, "{s}bot/user-info?api_key={s}", .{ duckdice_base_url, api });
+
+    var og_dice_url_buffer: [512]u8 = undefined;
+    const og_dice_url = try std.fmt.bufPrint(&og_dice_url_buffer, "{s}dice/play?api_key={s}", .{ duckdice_base_url, api });
 
     // Cleanups
     file.close();
@@ -78,7 +82,7 @@ pub fn main() !void {
     try stdout.flush();
 
     // Test only
-    const coin_name = "USDC";
+    const coin_name = "USDT";
     const minimum: u128 = if (std.mem.eql(u8, coin_name, "DECOY")) 1_000_000 else cg.calculateMinimum(allocator, &client, coin_name) catch |err| blk: {
         try stdout.print(
             "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
@@ -88,9 +92,21 @@ pub fn main() !void {
         break :blk 1;
     };
 
-    const minimum_as_f128 = aritmethic.intToFloat(minimum);
+    const minimum_as_f128 = aritmethic.intToFloat(minimum + 1_000);
 
     try stdout.print("Minimum bet set to: {d:.8} {s}\n", .{ minimum_as_f128, coin_name });
+
+    try stdout.print("Trying minimum bet on faucet for testing.\n", .{});
+
+    try stdout.flush();
+
+    _ = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, true, "44", true, allocator) catch |err| {
+        try stdout.print("Bet didn't work. Error: {any}\n", .{err});
+        try stdout.flush();
+        return;
+    };
+
+    try stdout.writeAll("Bet successful:)\n");
 
     try stdout.flush();
 }

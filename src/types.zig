@@ -222,6 +222,4 @@ pub const Balances = struct {
     main: ?[]const u8 = null,
     /// User's faucet balance in the currency, as a string.
     faucet: ?[]const u8 = null,
-    /// User's bonus balance in the currency, as a string.
-    bonus: ?[]const u8 = null,
 };

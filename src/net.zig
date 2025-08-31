@@ -72,25 +72,87 @@ pub fn getCoingecko(
 pub fn post(
     url: []const u8,
     bet_data: []const u8,
-    client: *std.http.Client,
     allocator: std.mem.Allocator,
 ) ![]u8 {
     var stdout_buffer: [1024]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
     const limit = std.mem.indexOf(u8, url, "=").?;
-    try stdout.print("\nURL: {s}<API-KEY> GET\n", .{url[0 .. limit + 1]});
+    try stdout.print("\nURL: {s}<API-KEY> POST\n", .{url[0 .. limit + 1]});
+    try stdout.flush();
+
+    // 1. Connect TCP
+    const host = "duckdice.io"; // extract host from url if needed
+    var stream = try std.net.tcpConnectToHost(allocator, host, 443);
+    defer stream.close();
+
+    var write_buf: [std.crypto.tls.max_ciphertext_record_len]u8 = undefined;
+    var writer = stream.writer(&write_buf);
+
+    var read_buf: [std.crypto.tls.max_ciphertext_record_len]u8 = undefined;
+    var reader = stream.reader(&read_buf);
+
+    var bundle = std.crypto.Certificate.Bundle{};
+    try bundle.rescan(allocator);
+
+    var write_buf2: [std.crypto.tls.max_ciphertext_record_len]u8 = undefined;
+    var read_buf2: [std.crypto.tls.max_ciphertext_record_len]u8 = undefined;
+
+    const tls_writer = &writer.interface;
+
+    var tls_client = try std.crypto.tls.Client.init(
+        reader.interface(),
+        tls_writer,
+        .{
+            .ca = .{ .bundle = bundle },
+            .host = .{ .explicit = host },
+            .read_buffer = &read_buf2,
+            .write_buffer = &write_buf2,
+        },
+    );
+    defer tls_client.end() catch {};
+
+    // 4. HTTP client over TLS
+    var client = std.http.Client{
+        .allocator = allocator,
+        .ca_bundle = bundle,
+    };
+    defer client.deinit();
 
     const headers = &[_]std.http.Header{
         .{ .name = "Content-Type", .value = "application/json" },
+        .{ .name = "User-Agent", .value = "DuckDiceBot/1.0.0" },
+        .{ .name = "Accept", .value = "*/*" },
     };
 
     var body_writter: std.io.Writer.Allocating = .init(allocator);
     defer body_writter.deinit();
-
+    try stdout.print("Cut url: {s}\n", .{url[19..]});
+    try stdout.print("Headers:\n", .{});
+    for (headers) |h| {
+        try stdout.print("  {s}: {s}\n", .{ h.name, h.value });
+    }
+    try stdout.print("Body: {s}\n", .{bet_data});
+    try stdout.flush();
     try stdout.print("Sending request...\n", .{});
+    try stdout.flush();
+
+    const string = try buildASendString(allocator, url, headers, bet_data);
+    try stdout.print("Built string: {s}\nString length: {d}\n", .{ string, string.len });
+    try stdout.flush();
+
+    try tls_writer.writeAll(string);
+    try tls_writer.flush();
+
+    var resp_buf: [65536]u8 = undefined;
+    const tls_reader = reader.interface();
+    tls_reader.readSliceAll(&resp_buf) catch |err| {
+        try stdout.print("Response string: {s}\nString length: {d}\nError: {any}\n", .{ resp_buf, resp_buf.len, err });
+        try stdout.flush();
+    };
+
     const response = try client.fetch(.{
-        .method = .GET,
+        .method = .POST,
         .location = .{ .url = url },
         .payload = bet_data,
         .extra_headers = headers, //put these here instead of .headers
@@ -104,4 +166,85 @@ pub fn post(
 
     // Return the response body to the caller
     return slice;
+}
+
+fn buildASendString(allocator: std.mem.Allocator, url: []const u8, headers: []const std.http.Header, bet_data: []const u8) ![]u8 {
+    var writer = std.ArrayList(u8){};
+
+    var stream = writer.writer(allocator);
+
+    try stream.print("POST {s} HTTP/1.1\r\n", .{url[19..]});
+    try stream.writeAll("Host: duckdice.io\r\n");
+    for (headers) |header| {
+        try stream.print("{s}: {s}", .{ header.name, header.value });
+        try stream.writeAll("\r\n");
+    }
+
+    try stream.print("Content-Length: {d}\r\n", .{bet_data.len});
+    try stream.writeAll("Connection: close\r\n\r\n");
+    try stream.writeAll(bet_data);
+
+    const slice = writer.toOwnedSlice(allocator);
+
+    return slice;
+}
+
+pub fn postUsingCurl(
+    allocator: std.mem.Allocator,
+    url: []const u8,
+    body: []const u8,
+) ![]u8 {
+    // Build curl arguments
+    var argv = std.ArrayList([]const u8){};
+    defer argv.deinit(allocator);
+
+    try argv.append(allocator, "curl");
+    try argv.append(allocator, "-s"); // silent mode
+    try argv.append(allocator, "-X");
+    try argv.append(allocator, "POST");
+
+    try argv.append(allocator, url);
+
+    // Headers
+    try argv.append(allocator, "-H");
+    try argv.append(allocator, "Content-Type: application/json");
+    try argv.append(allocator, "-H");
+    try argv.append(allocator, "User-Agent: DuckDiceBot/1.0.0");
+    try argv.append(allocator, "-H");
+    try argv.append(allocator, "Accept: */*");
+
+    // JSON payload
+    try argv.append(allocator, "-d");
+    try argv.append(allocator, body);
+
+    std.debug.print("Command: ", .{});
+    for (argv.items) |value| {
+        std.debug.print("{s} ", .{value});
+    }
+    std.debug.print("\n", .{});
+
+    // Initialize and configure Child
+    var child = std.process.Child.init(argv.items, allocator);
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Pipe;
+
+    // Spawn the process
+    try child.spawn();
+
+    // Collect output
+    var stdout_buf = std.ArrayList(u8){};
+    var stderr_buf = std.ArrayList(u8){};
+    //defer stdout_buf.deinit(allocator);
+    defer stderr_buf.deinit(allocator);
+
+    try child.collectOutput(allocator, &stdout_buf, &stderr_buf, 64 * 1024);
+
+    const term = try child.wait();
+    if (term != .Exited or stderr_buf.items.len != 0) {
+        return error.CurlFailed;
+    }
+
+    std.debug.print("Output: {s}\n", .{stdout_buf.items});
+
+    return stdout_buf.toOwnedSlice(allocator);
 }
