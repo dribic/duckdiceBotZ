@@ -36,7 +36,6 @@ pub fn main() !void {
     const response_body = try net.getDuckdice(user_info_url, &client, allocator);
 
     var result = try std.json.parseFromSlice(types.UserInfoResponse, allocator, response_body, .{ .ignore_unknown_fields = true });
-
     defer result.deinit();
 
     if (result.value.username) |username| {

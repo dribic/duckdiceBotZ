@@ -51,13 +51,13 @@ pub const TleItem = struct {
 /// Structs for the Original Dice / Bet Make endpoint's request.
 pub const OriginalDicePlayRequest = struct {
     /// The currency symbol for the bet, e.g., "BTC".
-    symbol: ?[]const u8 = null,
+    symbol: []const u8,
     /// The bet chance as a string, e.g., "88.88".
-    chance: ?[]const u8 = null,
+    chance: []const u8,
     /// Whether the bet is on High (true) or Low (false).
-    isHigh: ?bool = null,
+    isHigh: bool,
     /// The bet amount as a string, e.g., "0.01".
-    amount: ?[]const u8 = null,
+    amount: []const u8,
     /// User's wagering bonus hash (optional).
     userWageringBonusHash: ?[]const u8 = null,
     /// Faucet mode toggle (optional).
@@ -87,7 +87,7 @@ pub const Bet = struct {
     /// Currency symbol.
     symbol: ?[]const u8 = null,
     /// Win/Loss result.
-    result: ?bool = null,
+    result: bool,
     /// The bet choice, e.g., ">4999".
     choice: ?[]const u8 = null,
     /// The bet choice option, e.g., "0,2222".
