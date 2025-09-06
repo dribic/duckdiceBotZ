@@ -17,11 +17,20 @@ const std = @import("std");
 
 const DECIMAL_MULTI: f128 = 100_000_000;
 
+pub fn addOnePercent(number: u128) u128 {
+    if (number < 100) {
+        return number + 1;
+    }
+    const one_percent: u128 = number / 100;
+    return number + one_percent;
+}
+
 pub fn satoshiEquivalent(btc_price_usd: f128, other_price_usd: f128) u128 {
     const satoshi_value = btc_price_usd / DECIMAL_MULTI;
     const equivalent = satoshi_value / other_price_usd;
 
-    return floatToInt(equivalent);
+    const number = floatToInt(equivalent);
+    return addOnePercent(number);
 }
 
 pub fn floatToInt(number: f128) u128 {

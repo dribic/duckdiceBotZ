@@ -96,7 +96,7 @@ pub fn main() !void {
 
     // Test only
     const coin_name = "USDT";
-    const minimum: u128 = if (std.mem.eql(u8, coin_name, "DECOY")) 1_000_000 else cg.calculateMinimum(allocator, &client, coin_name) catch |err| blk: {
+    const minimum: u128 = if (std.mem.eql(u8, coin_name, "DECOY")) 1_000_000 else if (std.mem.eql(u8, coin_name, "BTC")) 1 else cg.calculateMinimum(allocator, &client, coin_name) catch |err| blk: {
         try stdout.print(
             "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
             .{ coin_name, err },
@@ -105,7 +105,7 @@ pub fn main() !void {
         break :blk 1;
     };
 
-    const minimum_as_f128 = aritmethic.intToFloat(minimum + 1_000);
+    const minimum_as_f128 = aritmethic.intToFloat(minimum);
 
     try stdout.print("Minimum bet set to: {d:.8} {s}\n", .{ minimum_as_f128, coin_name });
 
