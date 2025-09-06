@@ -61,6 +61,7 @@ pub fn main() !void {
         try stdout.print("Parsed user data for: {s}\n", .{username});
     } else {
         try stdout.print("User data loaded, but username field was missing.\n", .{});
+        return;
     }
 
     if (result.value.balances) |balances| {
@@ -78,6 +79,7 @@ pub fn main() !void {
         }
     } else {
         try stdout.print("User data loaded, but the balances field was missing.\n", .{});
+        return;
     }
     try stdout.flush();
 
