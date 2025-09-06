@@ -64,11 +64,15 @@ pub fn main() !void {
         return;
     }
 
+    var possible_currencies = std.ArrayList([]const u8){};
+    defer possible_currencies.deinit(allocator);
+
     if (result.value.balances) |balances| {
         try stdout.print("User's balances:\n", .{});
         for (balances) |balance| {
             if (balance.currency) |currency| {
                 try stdout.print("  - Currency: {s}\n", .{currency});
+                try possible_currencies.append(allocator, currency);
             }
             if (balance.main) |main_balance| {
                 try stdout.print("    Main balance: {s}\n", .{main_balance});
@@ -82,6 +86,13 @@ pub fn main() !void {
         return;
     }
     try stdout.flush();
+
+    try stdout.writeAll("Possible choices:\n");
+    for (possible_currencies.items, 1..) |currency, idx| {
+        try stdout.print("{d}: {s}\n", .{ idx, currency });
+    }
+    try stdout.flush();
+    try stdout.writeAll("\n\n");
 
     // Test only
     const coin_name = "USDT";
@@ -102,13 +113,19 @@ pub fn main() !void {
 
     try stdout.flush();
 
-    _ = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, true, "44", true, allocator) catch |err| {
+    const bet_result = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, true, "44", true, allocator) catch |err| {
         try stdout.print("Bet didn't work. Error: {any}\n", .{err});
         try stdout.flush();
         return;
     };
 
-    try stdout.writeAll("Bet successful:)\n");
+    try stdout.writeAll("Bet successfully made:)\n");
+
+    if (bet_result) {
+        try stdout.writeAll("Success!✅\n");
+    } else {
+        try stdout.writeAll("Failure!☯ \n");
+    }
 
     try stdout.flush();
 }
