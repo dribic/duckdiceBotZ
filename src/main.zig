@@ -31,9 +31,64 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const allocator = arena.allocator();
 
-    const file = std.fs.cwd().openFile("API.txt", .{ .mode = .read_only }) catch |err| {
-        try stdout.print("API file error: {any}\n", .{err});
-        return;
+    const json_file_path = "dd-coins.json";
+    const json_url = "https://drive.google.com/uc?export=download&id=1uwQzYrdDX5puSHLeonf45oTbhtht8c3g";
+
+    const json_file_exists: bool = blk: {
+        _ = std.fs.cwd().access(json_file_path, .{}) catch |err| switch (err) {
+            error.FileNotFound => break :blk false,
+            else => return err,
+        };
+        break :blk true;
+    };
+
+    if (json_file_exists) {
+        try stdout.print("File: {s} already exists.\n", .{json_file_path});
+        try stdout.flush();
+    } else {
+        try stdout.print("File: {s} doesn't exist. Downloading...\n", .{json_file_path});
+        try stdout.flush();
+        var dl_list = std.ArrayList([]const u8){};
+        defer dl_list.deinit(allocator);
+
+        try dl_list.append(allocator, "curl");
+        try dl_list.append(allocator, "-L");
+        try dl_list.append(allocator, "-s");
+        try dl_list.append(allocator, "-o");
+        try dl_list.append(allocator, json_file_path);
+        try dl_list.append(allocator, json_url);
+
+        var child = std.process.Child.init(dl_list.items, allocator);
+        child.stdin_behavior = .Inherit;
+        child.stdout_behavior = .Inherit;
+        child.stderr_behavior = .Inherit;
+
+        try child.spawn();
+        const term = try child.wait();
+        if (term.Exited != 0) {
+            return error.DownloadFailed;
+        }
+        try stdout.print("Successfully downloaded {s}. Continuing...\n", .{json_file_path});
+        try stdout.flush();
+    }
+
+    const file = std.fs.cwd().openFile("API.txt", .{ .mode = .read_only }) catch |err| switch (err) {
+        error.FileNotFound => blk: {
+            try stdout.print("API.txt not found. Please enter your API key: ", .{});
+            try stdout.flush();
+
+            const api_key = try input(allocator);
+
+            const new_file = try std.fs.cwd().createFile("API.txt", .{});
+            defer new_file.close();
+            try new_file.writeAll(api_key);
+
+            break :blk try std.fs.cwd().openFile("API.txt", .{ .mode = .read_only });
+        },
+        else => {
+            try stdout.print("API file error: {any}\n", .{err});
+            return;
+        },
     };
 
     const api_raw = try file.readToEndAlloc(allocator, 122);
@@ -140,7 +195,7 @@ fn input(allocator: std.mem.Allocator) ![]const u8 {
     const stdin = &stdin_reader.interface;
 
     const line = try stdin.takeDelimiterExclusive('\n');
-    const trimmed = std.mem.trim(u8, line, "\t\r\n"); // Because Windows
+    const trimmed = std.mem.trim(u8, line, " \t\r\n"); // Because Windows
     const result = try allocator.dupe(u8, trimmed);
 
     return result;
