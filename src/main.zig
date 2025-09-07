@@ -20,6 +20,8 @@ const cg = @import("coingecko.zig");
 const aritmethic = @import("arithmetic.zig");
 const betting = @import("betting.zig");
 
+const parseInt = std.fmt.parseInt;
+
 pub fn main() !void {
     var stdout_buffer: [1024]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
@@ -91,11 +93,13 @@ pub fn main() !void {
     for (possible_currencies.items, 1..) |currency, idx| {
         try stdout.print("{d}: {s}\n", .{ idx, currency });
     }
-    try stdout.flush();
-    try stdout.writeAll("\n\n");
 
     // Test only
-    const coin_name = "USDT";
+    try stdout.writeAll("Enter a number for the chosen currency: ");
+    try stdout.flush();
+    const coin_num_str = try input(allocator);
+    const coin_num = try parseInt(u16, coin_num_str, 10) - 1;
+    const coin_name = possible_currencies.items[coin_num];
     const minimum: u128 = if (std.mem.eql(u8, coin_name, "DECOY")) 1_000_000 else if (std.mem.eql(u8, coin_name, "BTC")) 1 else cg.calculateMinimum(allocator, &client, coin_name) catch |err| blk: {
         try stdout.print(
             "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
@@ -128,4 +132,16 @@ pub fn main() !void {
     }
 
     try stdout.flush();
+}
+
+fn input(allocator: std.mem.Allocator) ![]const u8 {
+    var stdin_buf: [64]u8 = undefined;
+    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    const stdin = &stdin_reader.interface;
+
+    const line = try stdin.takeDelimiterExclusive('\n');
+    const trimmed = std.mem.trim(u8, line, "\t\r\n"); // Because Windows
+    const result = try allocator.dupe(u8, trimmed);
+
+    return result;
 }
