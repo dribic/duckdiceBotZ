@@ -18,6 +18,78 @@ const types = @import("types.zig");
 const net = @import("net.zig");
 const aritmethic = @import("arithmetic.zig");
 
+pub fn labouchere(
+    url: []const u8,
+    currency: []const u8,
+    element_f: f128,
+    faucet: bool,
+    starting_balance: f128,
+    goal_balance: f128,
+    is_high: bool,
+    allocator: std.mem.Allocator,
+) !void {
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
+    var betting_seq = std.ArrayList(f128){};
+    defer betting_seq.deinit(allocator);
+
+    try betting_seq.ensureTotalCapacity(allocator, 15); // Pre-allocating slightly larger capacity, because bet odds less than 50%
+    try betting_seq.appendNTimes(allocator, element_f, 10);
+
+    const factor: f128 = if (faucet) 1.2045 else 1.25;
+
+    try stdout.print("Betting slip:\n[ ", .{});
+    for (betting_seq.items) |ele| {
+        try stdout.print("{d:.8} ", .{ele});
+    }
+    try stdout.print("]\n", .{});
+    try stdout.flush();
+
+    var current_balance: f128 = starting_balance;
+
+    while (current_balance < goal_balance) {
+        if (betting_seq.items.len == 0) {
+            const msgs = [_][]const u8{ "🖖 Sequence collapsed... initiating Vulcan logic reboot.", "✨ The Force has balanced... resetting Jedi sequence.", "🌀 Wormhole unstable — recalibrating Stargate sequence.", "🚀 Sequence fell out of warp — reinitializing at starbase.", "💫 Hyperdrive misfire! Restoring sequence from backup crystals.", "⚡ Phaser overload detected — diverting power to new sequence.", "👽 Borg interference detected — sequence has been assimilated, regenerating...", "🌌 Death Star superlaser misfire — reconstructing sequence from debris.", "🔮 ZPM fluctuations detected — Stargate dialing new sequence.", "📡 Subspace anomaly detected — rematerializing betting sequence.", "🛰️ Shields at 10%! Diverting power to sequence restoration.", "🕳️ Sequence fell into a black hole... retrieving via temporal anomaly.", "🤖 R2-D2 rerouted power — rebooting sequence systems.", "🪐 Sequence lost in the Gamma Quadrant... calling USS Defiant for backup." };
+
+            const idx = std.crypto.random.intRangeLessThan(usize, 0, msgs.len);
+
+            try stdout.print("{s}\n", .{msgs[idx]});
+            try stdout.flush();
+
+            try betting_seq.appendNTimes(allocator, element_f, 10);
+        }
+
+        const final_idx = betting_seq.items.len - 1;
+        const bet_amount = if (final_idx == 0) betting_seq.items[0] else aritmethic.add(betting_seq.items[0], betting_seq.items[final_idx], 1.0);
+
+        if (bet_amount > current_balance) {
+            try stdout.print("Balance too low!\n", .{});
+            try stdout.flush();
+            return;
+        }
+
+        const bet_result = try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator);
+
+        if (bet_result) {
+            current_balance = aritmethic.add(current_balance, bet_amount, factor);
+            _ = betting_seq.pop();
+            try betting_seq.orderedRemove(0);
+        } else {
+            current_balance = aritmethic.sub(current_balance, bet_amount);
+            try betting_seq.append(allocator, bet_amount);
+        }
+
+        try stdout.print("Current betting slip:\n[ ", .{});
+        for (betting_seq.items) |ele| {
+            try stdout.print("{d:.8} ", .{ele});
+        }
+        try stdout.print("]\n", .{});
+        try stdout.flush();
+    }
+}
+
 pub fn placeABet(
     url: []const u8,
     currency: []const u8,
