@@ -75,10 +75,14 @@ pub fn labouchere(
         if (bet_result) {
             current_balance = aritmethic.add(current_balance, bet_amount, factor);
             _ = betting_seq.pop();
-            try betting_seq.orderedRemove(0);
+            _ = betting_seq.orderedRemove(0);
+            try stdout.writeAll("Success!✅\n");
+            try stdout.flush();
         } else {
             current_balance = aritmethic.sub(current_balance, bet_amount);
             try betting_seq.append(allocator, bet_amount);
+            try stdout.writeAll("Failure!☯ \n");
+            try stdout.flush();
         }
 
         try stdout.print("Current betting slip:\n[ ", .{});
@@ -105,15 +109,12 @@ pub fn placeABet(
     const bet = types.OriginalDicePlayRequest{ .amount = amount, .chance = chance, .symbol = currency, .isHigh = is_high, .faucet = faucet };
 
     var body_writter: std.io.Writer.Allocating = .init(allocator);
+    const writer = &body_writter.writer;
     defer body_writter.deinit();
 
-    var s = std.json.Stringify{
-        .writer = &body_writter.writer,
-        .options = .{ .whitespace = .minified, .emit_null_optional_fields = false }, // or .indent_2 for pretty
-    };
-    try s.write(bet);
+    try std.json.Stringify.value(bet, .{ .emit_null_optional_fields = false, .whitespace = .minified }, writer);
 
-    const slice = try body_writter.toOwnedSlice();
+    const slice = body_writter.written();
 
     const response = try net.postUsingCurl(allocator, url, slice);
     var result = try std.json.parseFromSlice(types.DicePlayResponse, allocator, response, .{ .ignore_unknown_fields = true });

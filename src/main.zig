@@ -87,7 +87,8 @@ pub fn main() !void {
         },
         else => {
             try stdout.print("API file error: {any}\n", .{err});
-            return;
+            try stdout.flush();
+            std.process.exit(1);
         },
     };
 
@@ -118,7 +119,8 @@ pub fn main() !void {
         try stdout.print("Parsed user data for: {s}\n", .{username});
     } else {
         try stdout.print("User data loaded, but username field was missing.\n", .{});
-        return;
+        try stdout.flush();
+        std.process.exit(1);
     }
 
     var possible_currencies = std.ArrayList([]const u8){};
@@ -140,7 +142,8 @@ pub fn main() !void {
         }
     } else {
         try stdout.print("User data loaded, but the balances field was missing.\n", .{});
-        return;
+        try stdout.flush();
+        std.process.exit(1);
     }
     try stdout.flush();
 
@@ -175,7 +178,7 @@ pub fn main() !void {
     const bet_result = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, true, "44", true, allocator) catch |err| {
         try stdout.print("Bet didn't work. Error: {any}\n", .{err});
         try stdout.flush();
-        return;
+        std.process.exit(1);
     };
 
     try stdout.writeAll("Bet successfully made:)\n");
