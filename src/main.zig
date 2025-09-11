@@ -175,13 +175,18 @@ pub fn main() !void {
 
     try stdout.flush();
 
-    const bet_result = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, true, "44", true, allocator) catch |err| {
+    const bet_response = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, true, "44", true, allocator) catch |err| {
         try stdout.print("Bet didn't work. Error: {any}\n", .{err});
         try stdout.flush();
         std.process.exit(1);
     };
 
     try stdout.writeAll("Bet successfully made:)\n");
+
+    const bet_roll = bet_response.number.?;
+    const bet_result = bet_response.result;
+
+    try stdout.print("Roll: {d}\n", .{bet_roll});
 
     if (bet_result) {
         try stdout.writeAll("Success!✅\n");

@@ -37,7 +37,6 @@ pub fn labouchere(
 
     try betting_seq.ensureTotalCapacity(allocator, 15); // Pre-allocating slightly larger capacity, because bet odds less than 50%
     try betting_seq.appendNTimes(allocator, element_f, 10);
-
     const factor: f128 = if (faucet) 1.2045 else 1.25;
 
     try stdout.print("Betting slip:\n[ ", .{});
@@ -70,7 +69,11 @@ pub fn labouchere(
             return;
         }
 
-        const bet_result = try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator);
+        const bet_response = try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator);
+        const bet_roll = bet_response.number.?;
+        const bet_result = bet_response.result;
+
+        try stdout.print("Roll: {d}\n", .{bet_roll});
 
         if (bet_result) {
             current_balance = aritmethic.add(current_balance, bet_amount, factor);
@@ -102,7 +105,7 @@ pub fn placeABet(
     chance: []const u8,
     is_high: bool,
     allocator: std.mem.Allocator,
-) !bool {
+) !types.Bet {
     var buf: [64]u8 = undefined;
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
@@ -120,5 +123,5 @@ pub fn placeABet(
     var result = try std.json.parseFromSlice(types.DicePlayResponse, allocator, response, .{ .ignore_unknown_fields = true });
     defer result.deinit();
 
-    return result.value.bet.?.result;
+    return result.value.bet.?;
 }
