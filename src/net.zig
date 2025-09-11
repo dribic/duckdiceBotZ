@@ -15,17 +15,11 @@
 
 const std = @import("std");
 
-pub fn getDuckdice(
+pub fn get(
     url: []const u8,
     client: *std.http.Client,
     allocator: std.mem.Allocator,
 ) ![]u8 {
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
-    const limit = std.mem.indexOf(u8, url, "=").?;
-    try stdout.print("\nURL: {s}<API-KEY> GET\n", .{url[0 .. limit + 1]});
-
     const headers = &[_]std.http.Header{
         .{ .name = "X-Custom-Header", .value = "application" },
     };
@@ -33,8 +27,7 @@ pub fn getDuckdice(
     var body_writter: std.io.Writer.Allocating = .init(allocator);
     defer body_writter.deinit();
 
-    try stdout.print("Sending request...\n", .{});
-    const response = try client.fetch(.{
+    _ = try client.fetch(.{
         .method = .GET,
         .location = .{ .url = url },
         .extra_headers = headers, //put these here instead of .headers
@@ -42,30 +35,8 @@ pub fn getDuckdice(
     });
 
     const slice = try body_writter.toOwnedSlice();
-    try stdout.print("Response Status: {d}\nResponse Body:{s}\n", .{ response.status, slice });
-
-    try stdout.flush();
 
     // Return the response body to the caller
-    return slice;
-}
-
-pub fn getCoingecko(
-    url: []const u8,
-    client: *std.http.Client,
-    allocator: std.mem.Allocator,
-) ![]u8 {
-    var body_writter: std.io.Writer.Allocating = .init(allocator);
-    defer body_writter.deinit();
-
-    _ = try client.fetch(.{
-        .method = .GET,
-        .location = .{ .url = url },
-        .response_writer = &body_writter.writer, // this allows us to get a response of unknown size
-    });
-
-    const slice = try body_writter.toOwnedSlice();
-
     return slice;
 }
 
@@ -217,12 +188,6 @@ pub fn postUsingCurl(
     try argv.append(allocator, "-d");
     try argv.append(allocator, body);
 
-    std.debug.print("Command: ", .{});
-    for (argv.items) |value| {
-        std.debug.print("{s} ", .{value});
-    }
-    std.debug.print("\n", .{});
-
     // Initialize and configure Child
     var child = std.process.Child.init(argv.items, allocator);
     child.stdout_behavior = .Pipe;
@@ -234,7 +199,6 @@ pub fn postUsingCurl(
     // Collect output
     var stdout_buf = std.ArrayList(u8){};
     var stderr_buf = std.ArrayList(u8){};
-    //defer stdout_buf.deinit(allocator);
     defer stderr_buf.deinit(allocator);
 
     try child.collectOutput(allocator, &stdout_buf, &stderr_buf, 64 * 1024);
@@ -243,8 +207,6 @@ pub fn postUsingCurl(
     if (term != .Exited or stderr_buf.items.len != 0) {
         return error.CurlFailed;
     }
-
-    std.debug.print("Output: {s}\n", .{stdout_buf.items});
 
     return stdout_buf.toOwnedSlice(allocator);
 }

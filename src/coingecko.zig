@@ -65,7 +65,7 @@ pub fn calculateMinimum(allocator: std.mem.Allocator, client: *std.http.Client, 
         try std.fmt.allocPrint(allocator, "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,{s}&vs_currencies=usd", .{coin});
     defer allocator.free(url);
 
-    const json_data = try net.getCoingecko(url, client, allocator);
+    const json_data = try net.get(url, client, allocator);
 
     // --- Parse into JSON Value ---
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_data, .{});

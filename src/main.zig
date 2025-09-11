@@ -110,7 +110,7 @@ pub fn main() !void {
         .allocator = allocator,
     };
 
-    const response_body = try net.getDuckdice(user_info_url, &client, allocator);
+    const response_body = try net.get(user_info_url, &client, allocator);
 
     var result = try std.json.parseFromSlice(types.UserInfoResponse, allocator, response_body, .{ .ignore_unknown_fields = true });
     defer result.deinit();
