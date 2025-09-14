@@ -57,6 +57,10 @@ pub fn labouchere(
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
 
+    var number_of_bets: u16 = 0;
+    var number_of_wins: u16 = 0;
+    var number_of_loses: u16 = 0;
+    var total_value_betted: f128 = 0;
     var betting_seq = std.ArrayList(f128){};
     defer betting_seq.deinit(allocator);
 
@@ -106,24 +110,29 @@ pub fn labouchere(
         }
 
         const bet_response = try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator);
+        number_of_bets += 1;
+        total_value_betted = aritmethic.add(total_value_betted, bet_amount, 1.0);
         const bet_roll = bet_response.number.?;
         const bet_result = bet_response.result;
 
         try stdout.print("Roll: {d}\n", .{bet_roll});
 
         if (bet_result) {
+            number_of_wins += 1;
             current_balance = aritmethic.add(current_balance, bet_amount, factor);
             _ = betting_seq.pop();
             _ = betting_seq.orderedRemove(0);
             try stdout.writeAll("Success!✅\n");
             try stdout.flush();
         } else {
+            number_of_loses += 1;
             current_balance = aritmethic.sub(current_balance, bet_amount);
             try betting_seq.append(allocator, bet_amount);
             try stdout.writeAll("Failure!☯ \n");
             try stdout.flush();
         }
 
+        try stdout.print("Current balance: {d:.8} {s}\nGoal: {d:.8} {s}\nNumber of bets: {d}, Number of wins: {d}, Number of loses: {d}.\n", .{ current_balance, currency, goal_balance, currency, number_of_bets, number_of_wins, number_of_loses });
         try stdout.print("Current betting slip:\n[ ", .{});
         for (betting_seq.items) |ele| {
             try stdout.print("{d:.8} ", .{ele});
