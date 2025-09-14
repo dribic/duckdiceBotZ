@@ -18,6 +18,30 @@ const types = @import("types.zig");
 const net = @import("net.zig");
 const aritmethic = @import("arithmetic.zig");
 
+pub fn safety(allocator: std.mem.Allocator, bet_slip: *std.ArrayList(f128), base_value: u128) !void {
+    var sum: u128 = 0;
+    for (bet_slip.items) |bet_value| {
+        const number = aritmethic.floatToInt(bet_value);
+        sum += number;
+    }
+    try bet_slip.ensureTotalCapacity(allocator, 3 * bet_slip.items.len); // Pre-allocating large capacity to avoid constant allocations
+    bet_slip.clearRetainingCapacity();
+
+    while (sum != 0) {
+        for (1..4) |multi| {
+            const element_int: u128 = base_value * @as(u128, multi);
+            if (element_int > sum) {
+                break;
+            }
+            const element_f: f128 = aritmethic.intToFloat(element_int);
+            try bet_slip.append(allocator, element_f);
+            sum -= element_int;
+        }
+    }
+
+    std.mem.sort(f128, bet_slip.items, {}, std.sort.asc(f128));
+}
+
 pub fn labouchere(
     url: []const u8,
     currency: []const u8,
@@ -28,6 +52,7 @@ pub fn labouchere(
     is_high: bool,
     allocator: std.mem.Allocator,
 ) !void {
+    const element_int = aritmethic.floatToInt(element_f);
     var stdout_buffer: [1024]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
@@ -59,9 +84,20 @@ pub fn labouchere(
 
             try betting_seq.appendNTimes(allocator, element_f, 10);
         }
+        const first_as_int = aritmethic.floatToInt(betting_seq.items[0]);
 
         const final_idx = betting_seq.items.len - 1;
         const bet_amount = if (final_idx == 0) betting_seq.items[0] else aritmethic.add(betting_seq.items[0], betting_seq.items[final_idx], 1.0);
+        const bet_as_int = aritmethic.floatToInt(bet_amount);
+
+        // Safety
+        if (bet_as_int >= element_int * 11 or first_as_int >= element_int * 4) {
+            try stdout.print("⚠️ Safety triggered, reconstructing slip... cooling down for 5 seconds.\n", .{});
+            try stdout.flush();
+            std.Thread.sleep(5 * std.time.ns_per_s);
+            try safety(allocator, &betting_seq, element_int);
+            continue;
+        }
 
         if (bet_amount > current_balance) {
             try stdout.print("Balance too low!\n", .{});
