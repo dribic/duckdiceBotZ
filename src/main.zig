@@ -166,6 +166,17 @@ pub fn main() !void {
         try stdout.flush();
         break :blk 1;
     };
+    var faucet: bool = false;
+    if (std.mem.eql(u8, coin_name, "DECOY")) {
+        faucet = false;
+    } else {
+        try stdout.writeAll("Choose a mode:\n1)[M]ain\n2)[F]aucet\nEnter a number: ");
+        try stdout.flush();
+        const input_f = try input(allocator);
+        if (std.mem.eql(u8, input_f, "2") or std.mem.eql(u8, input_f, "f") or std.mem.eql(u8, input_f, "F")) {
+            faucet = true;
+        }
+    }
 
     const minimum_as_f128 = aritmethic.intToFloat(minimum);
 
@@ -175,7 +186,7 @@ pub fn main() !void {
 
     try stdout.flush();
 
-    const bet_response = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, true, "44", true, allocator) catch |err| {
+    const bet_response = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, faucet, "44", true, allocator) catch |err| {
         try stdout.print("Bet didn't work. Error: {any}\n", .{err});
         try stdout.flush();
         std.process.exit(1);
