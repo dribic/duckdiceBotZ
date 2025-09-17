@@ -21,6 +21,7 @@ const aritmethic = @import("arithmetic.zig");
 const betting = @import("betting.zig");
 
 const parseInt = std.fmt.parseInt;
+const parseFloat = std.fmt.parseFloat;
 
 pub fn main() !void {
     var stdout_buffer: [1024]u8 = undefined;
@@ -145,12 +146,14 @@ pub fn main() !void {
         try stdout.flush();
         std.process.exit(1);
     }
+    try stdout.print("--" ** 20 ++ "\n", .{});
     try stdout.flush();
 
     try stdout.writeAll("Possible choices:\n");
     for (possible_currencies.items, 1..) |currency, idx| {
         try stdout.print("{d}: {s}\n", .{ idx, currency });
     }
+    try stdout.print("--" ** 20 ++ "\n", .{});
 
     // Test only
     try stdout.writeAll("Enter a number for the chosen currency: ");
@@ -166,6 +169,8 @@ pub fn main() !void {
         try stdout.flush();
         break :blk 1;
     };
+    const minimum_as_f128 = aritmethic.intToFloat(minimum);
+
     var faucet: bool = false;
     if (std.mem.eql(u8, coin_name, "DECOY")) {
         faucet = false;
@@ -178,15 +183,27 @@ pub fn main() !void {
         }
     }
 
-    const minimum_as_f128 = aritmethic.intToFloat(minimum);
-
-    try stdout.print("Minimum bet set to: {d:.8} {s}\n", .{ minimum_as_f128, coin_name });
-
-    try stdout.print("Trying minimum bet on faucet for testing.\n", .{});
-
+    var is_high: bool = true;
+    try stdout.writeAll("Side:\n1)[H]igh\n2)[L]ow\nChoose: ");
     try stdout.flush();
+    const input_h = try input(allocator);
+    if (std.mem.eql(u8, input_h, "2") or std.mem.eql(u8, input_h, "l") or std.mem.eql(u8, input_h, "L")) {
+        is_high = false;
+    }
 
-    const bet_response = betting.placeABet(og_dice_url, coin_name, minimum_as_f128, faucet, "44", true, allocator) catch |err| {
+    var amount: f128 = 0.0;
+    try stdout.writeAll("Enter bet amount: ");
+    try stdout.flush();
+    const input_amount = try input(allocator);
+    amount = parseFloat(f128, input_amount) catch 0.0;
+    if (amount < minimum_as_f128) {
+        try stdout.print("Chosen amount is lower than {d:.8} {s}\n", .{ minimum_as_f128, coin_name });
+        try stdout.print("Setting amount to {d:.8} {s}\n", .{ minimum_as_f128, coin_name });
+        try stdout.flush();
+        amount = minimum_as_f128;
+    }
+
+    const bet_response = betting.placeABet(og_dice_url, coin_name, amount, faucet, "44", is_high, allocator) catch |err| {
         try stdout.print("Bet didn't work. Error: {any}\n", .{err});
         try stdout.flush();
         std.process.exit(1);
