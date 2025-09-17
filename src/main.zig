@@ -147,7 +147,12 @@ pub fn main() !void {
         std.process.exit(1);
     }
     try stdout.print("--" ** 20 ++ "\n", .{});
+    try stdout.writeAll("Betting strategies:\n1)[S]ingle bet\n2)[L]abouchere\n");
+    try stdout.print("--" ** 20 ++ "\n", .{});
+    try stdout.writeAll("Choose betting strategy: ");
     try stdout.flush();
+
+    const bet_strat = try input(allocator);
 
     try stdout.writeAll("Possible choices:\n");
     for (possible_currencies.items, 1..) |currency, idx| {
@@ -203,26 +208,71 @@ pub fn main() !void {
         amount = minimum_as_f128;
     }
 
-    const bet_response = betting.placeABet(og_dice_url, coin_name, amount, faucet, "44", is_high, allocator) catch |err| {
-        try stdout.print("Bet didn't work. Error: {any}\n", .{err});
-        try stdout.flush();
-        std.process.exit(1);
-    };
+    const bet_strat_choice = if (bet_strat.len > 0) bet_strat[0] else 'e';
 
-    try stdout.writeAll("Bet successfully made:)\n");
+    switch (bet_strat_choice) {
+        '1', 'S', 's' => {
+            const bet_response = betting.placeABet(og_dice_url, coin_name, amount, faucet, "44", is_high, allocator) catch |err| {
+                try stdout.print("Bet didn't work. Error: {any}\n", .{err});
+                try stdout.flush();
+                std.process.exit(1);
+            };
 
-    const bet_roll = bet_response.number.?;
-    const bet_result = bet_response.result;
+            try stdout.writeAll("Bet successfully made:)\n");
 
-    try stdout.print("Roll: {d}\n", .{bet_roll});
+            const bet_roll = bet_response.number.?;
+            const bet_result = bet_response.result;
 
-    if (bet_result) {
-        try stdout.writeAll("Success!✅\n");
-    } else {
-        try stdout.writeAll("Failure!☯ \n");
+            try stdout.print("Roll: {d}\n", .{bet_roll});
+
+            if (bet_result) {
+                try stdout.writeAll("Success!✅\n");
+            } else {
+                try stdout.writeAll("Failure!☯ \n");
+            }
+
+            try stdout.flush();
+        },
+        '2', 'L', 'l' => {
+            const bals = result.value.balances.?;
+
+            var current_as_str: ?[]const u8 = null;
+
+            for (bals) |balance_item| {
+                if (std.mem.eql(u8, coin_name, balance_item.currency.?)) {
+                    if (faucet) {
+                        current_as_str = balance_item.faucet;
+                    } else {
+                        current_as_str = balance_item.main;
+                    }
+                    break;
+                }
+            }
+            try stdout.print("Current balance: {s} {s}\n", .{ current_as_str.?, coin_name });
+
+            const current_balance_as_f = try parseFloat(f128, current_as_str.?);
+            const amount_as_int = aritmethic.floatToInt(amount);
+            const goal_balance_default: u128 = aritmethic.floatToInt(current_balance_as_f) + 5 * amount_as_int;
+            try stdout.writeAll("Enter goal balance: ");
+            try stdout.flush();
+            const goal_balance_str = try input(allocator);
+            var goal_balance_as_f: f128 = parseFloat(f128, goal_balance_str) catch aritmethic.intToFloat(goal_balance_default);
+            const goal_balance_as_int = aritmethic.floatToInt(goal_balance_as_f);
+            if (goal_balance_as_int > aritmethic.floatToInt(current_balance_as_f) + 10 * amount_as_int) {
+                goal_balance_as_f = aritmethic.intToFloat(goal_balance_default);
+            }
+            try stdout.print("Goal: {d:.8} {s}\n", .{ goal_balance_as_f, coin_name });
+            try stdout.writeAll("Starting Labouchere run.\n");
+            try stdout.flush();
+
+            try betting.labouchere(og_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, is_high, allocator);
+        },
+        else => {
+            try stdout.writeAll("You chose poorly!\n");
+            try stdout.flush();
+            std.process.exit(1);
+        },
     }
-
-    try stdout.flush();
 }
 
 fn input(allocator: std.mem.Allocator) ![]const u8 {
