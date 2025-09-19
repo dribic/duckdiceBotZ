@@ -91,8 +91,20 @@ pub fn labouchere(
         const first_as_int = aritmethic.floatToInt(betting_seq.items[0]);
 
         const final_idx = betting_seq.items.len - 1;
-        const bet_amount = if (final_idx == 0) betting_seq.items[0] else aritmethic.add(betting_seq.items[0], betting_seq.items[final_idx], 1.0);
+        var bet_amount: f128 = if (final_idx == 0) betting_seq.items[0] else aritmethic.add(betting_seq.items[0], betting_seq.items[final_idx], 1.0);
+        try stdout.print("Current bet amount: {d:.8} {s}\n", .{ bet_amount, currency });
         const bet_as_int = aritmethic.floatToInt(bet_amount);
+        var lowering: bool = false;
+        while (aritmethic.add(current_balance, bet_amount, factor) > goal_balance and bet_amount > element_f) {
+            lowering = true;
+            try stdout.print("Lowering bet amount by {d:.8} for safety!\n", .{element_f});
+            try stdout.flush();
+            bet_amount = aritmethic.sub(bet_amount, element_f);
+        }
+        if (lowering) {
+            try stdout.print("New bet amount: {d:.8} {s}\n", .{ bet_amount, currency });
+        }
+        try stdout.flush();
 
         // Safety
         if (bet_as_int >= element_int * 11 or first_as_int >= element_int * 4) {
@@ -120,8 +132,23 @@ pub fn labouchere(
         if (bet_result) {
             number_of_wins += 1;
             current_balance = aritmethic.add(current_balance, bet_amount, factor);
-            _ = betting_seq.pop();
-            _ = betting_seq.orderedRemove(0);
+            if (lowering) {
+                var bet_amount_int: u128 = aritmethic.floatToInt(bet_amount);
+                while (bet_amount_int != 0) {
+                    var last_element_int: u128 = aritmethic.floatToInt(betting_seq.items[betting_seq.items.len - 1]);
+                    if (last_element_int > bet_amount_int) {
+                        last_element_int -= bet_amount_int;
+                        bet_amount_int = 0;
+                        betting_seq.items[betting_seq.items.len - 1] = aritmethic.intToFloat(last_element_int);
+                    } else {
+                        bet_amount_int -= last_element_int;
+                        _ = betting_seq.pop();
+                    }
+                }
+            } else {
+                _ = betting_seq.pop();
+                _ = betting_seq.orderedRemove(0);
+            }
             try stdout.writeAll("Success!✅\n");
             try stdout.flush();
         } else {
