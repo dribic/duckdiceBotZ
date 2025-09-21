@@ -18,6 +18,67 @@ const types = @import("types.zig");
 const net = @import("net.zig");
 const aritmethic = @import("arithmetic.zig");
 
+pub fn fibSeq(
+    url: []const u8,
+    currency: []const u8,
+    bet_value: f128,
+    faucet: bool,
+    starting_balance: f128,
+    goal_balance: f128,
+    limit_balance: f128,
+    is_high: bool,
+    allocator: std.mem.Allocator,
+) !void {
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
+    var fib_list: std.ArrayList(u16) = .empty;
+    defer fib_list.deinit(allocator);
+
+    const factor: f128 = if (faucet) 1.2045 else 1.25;
+    try fib_list.appendNTimes(allocator, 1, 2);
+
+    var current_balance: f128 = starting_balance;
+
+    while (current_balance < goal_balance and current_balance > limit_balance) {
+        while (fib_list.items.len > 1) {
+            const bet_amount: f128 = bet_value * @as(f128, @floatFromInt(fib_list.items[fib_list.items.len - 1]));
+            const bet_response = try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator);
+            const bet_roll = bet_response.number.?;
+            const bet_result = bet_response.result;
+
+            try stdout.print("Current bet amount: {d:.8} {s}\n", .{ bet_amount, currency });
+            try stdout.print("Current balance: {d:.8} {s}\nGoal: {d:.8} {s}\n", .{ current_balance, currency, goal_balance, currency });
+            try stdout.print("Roll: {d}\n", .{bet_roll});
+
+            if (bet_result) {
+                current_balance = aritmethic.add(current_balance, bet_amount, factor);
+                _ = fib_list.pop();
+                _ = fib_list.pop();
+                try stdout.writeAll("Success!✅\n");
+                try stdout.flush();
+            } else {
+                current_balance = aritmethic.sub(current_balance, bet_amount);
+                const next_fib = fib_list.items[fib_list.items.len - 2] + fib_list.items[fib_list.items.len - 1];
+                try fib_list.append(allocator, next_fib);
+                try stdout.writeAll("Failure!☯ \n");
+                try stdout.flush();
+                if (current_balance < limit_balance) return;
+            }
+            try stdout.print("Current fibonnacci list:\n[ ", .{});
+            for (fib_list.items) |ele| {
+                try stdout.print("{d} ", .{ele});
+            }
+            try stdout.print("]\n", .{});
+            try stdout.flush();
+        }
+
+        fib_list.clearRetainingCapacity();
+        try fib_list.appendNTimes(allocator, 1, 2);
+    }
+}
+
 pub fn safety(allocator: std.mem.Allocator, bet_slip: *std.ArrayList(f128), base_value: u128) !void {
     var sum: u128 = 0;
     for (bet_slip.items) |bet_value| {
