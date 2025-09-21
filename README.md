@@ -7,38 +7,9 @@
 duckdiceBotZ is a gambling bot for the website https://duckdice.io written in Zig. It is currently limited to implementing the
 Labouchere betting strategy and Fibonacci betting strategy.
 
-**duckdiceBotZ currently needs curl installed on your system to work properly.**
-
 ## Zig version
 
-duckdiceBotZ uses Zig version 0.15.1
-
-## cURL prerequisites
-
-Check if cURL is already installed:
-
-`curl --version`
-
-If its not, install it, like this:
- - Windows
-
- `winget install curl`
-
- - Debian/Ubuntu
-
- `sudo apt install curl`
-
- - Arch
-
- `sudo pacman -S curl`
-
- - Fedora/RHEL(8+)/RHEL(8+)-clones
-
- `sudo dnf install curl`
-
- - Opensuse
-
- `sudo zypper install curl`
+duckdiceBotZ uses Zig version 0.15.2
 
 ## Plans
 

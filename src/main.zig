@@ -32,6 +32,10 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const allocator = arena.allocator();
 
+    var client = std.http.Client{
+        .allocator = allocator,
+    };
+
     const json_file_path = "dd-coins.json";
     const json_url = "https://drive.google.com/uc?export=download&id=1uwQzYrdDX5puSHLeonf45oTbhtht8c3g";
 
@@ -49,26 +53,17 @@ pub fn main() !void {
     } else {
         try stdout.print("File: {s} doesn't exist. Downloading...\n", .{json_file_path});
         try stdout.flush();
-        var dl_list = std.ArrayList([]const u8){};
-        defer dl_list.deinit(allocator);
 
-        try dl_list.append(allocator, "curl");
-        try dl_list.append(allocator, "-L");
-        try dl_list.append(allocator, "-s");
-        try dl_list.append(allocator, "-o");
-        try dl_list.append(allocator, json_file_path);
-        try dl_list.append(allocator, json_url);
+        const json_file_data = try net.get(json_url, &client, allocator);
+        const json_file = try std.fs.cwd().createFile(json_file_path, .{});
+        defer json_file.close();
 
-        var child = std.process.Child.init(dl_list.items, allocator);
-        child.stdin_behavior = .Inherit;
-        child.stdout_behavior = .Inherit;
-        child.stderr_behavior = .Inherit;
+        var json_buffer: [2048]u8 = undefined;
+        var writer = json_file.writer(&json_buffer);
+        const f_write = &writer.interface;
+        try f_write.writeAll(json_file_data);
+        try f_write.flush();
 
-        try child.spawn();
-        const term = try child.wait();
-        if (term.Exited != 0) {
-            return error.DownloadFailed;
-        }
         try stdout.print("Successfully downloaded {s}. Continuing...\n", .{json_file_path});
         try stdout.flush();
     }
@@ -109,10 +104,6 @@ pub fn main() !void {
     // Cleanups
     file.close();
     defer arena.deinit();
-
-    var client = std.http.Client{
-        .allocator = allocator,
-    };
 
     // Master loop
     master_loop: while (true) {
@@ -166,6 +157,7 @@ pub fn main() !void {
             try stdout.flush();
             break :master_loop;
         }
+
         try stdout.writeAll("Choose Dice Game:\n1)[O]riginal Dice\n2)[R]ange Dice\n");
         try stdout.print("--" ** 20 ++ "\n", .{});
         try stdout.writeAll("Choice: ");
@@ -268,7 +260,7 @@ pub fn main() !void {
                 const chance_n = aritmethic.parseOdds(chance);
                 if (dice_game) {
                     const og_chance = if (chance_n != null) chance else "94";
-                    bet_response = betting.placeABet(og_dice_url, coin_name, amount, faucet, og_chance, is_high, allocator) catch |err| {
+                    bet_response = betting.placeABet(og_dice_url, &client, coin_name, amount, faucet, og_chance, is_high, allocator) catch |err| {
                         try stdout.print("Bet didn't work. Error: {any}\n", .{err});
                         try stdout.flush();
                         continue :master_loop;
@@ -284,7 +276,7 @@ pub fn main() !void {
                     };
                     const diff: u16 = @as(u16, @intFromFloat(diff_f)) - 1;
                     limits.set(bottom, diff);
-                    bet_response = betting.placeARangeDiceBet(range_dice_url, coin_name, amount, faucet, limits, true, allocator) catch |err| {
+                    bet_response = betting.placeARangeDiceBet(range_dice_url, &client, coin_name, amount, faucet, limits, true, allocator) catch |err| {
                         try stdout.print("Bet didn't work. Error: {any}\n", .{err});
                         try stdout.flush();
                         continue :master_loop;
@@ -328,10 +320,10 @@ pub fn main() !void {
                 try stdout.flush();
 
                 if (dice_game) {
-                    try betting.labouchere(og_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.labouchere(og_dice_url, &client, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator);
                 } else {
                     limits.set(bottom, 4399);
-                    try betting.labouchere(range_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.labouchere(range_dice_url, &client, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator);
                 }
             },
             '3', 'F', 'f' => {
@@ -351,10 +343,10 @@ pub fn main() !void {
                 try stdout.flush();
 
                 if (dice_game) {
-                    try betting.fibSeq(og_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.fibSeq(og_dice_url, &client, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
                 } else {
                     limits.set(bottom, 4399);
-                    try betting.fibSeq(range_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.fibSeq(range_dice_url, &client, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
                 }
             },
             else => {

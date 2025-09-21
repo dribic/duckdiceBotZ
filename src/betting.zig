@@ -20,6 +20,7 @@ const aritmethic = @import("arithmetic.zig");
 
 pub fn fibSeq(
     url: []const u8,
+    client: *std.http.Client,
     currency: []const u8,
     bet_value: f128,
     faucet: bool,
@@ -47,7 +48,7 @@ pub fn fibSeq(
         while (fib_list.items.len > 1) {
             const bet_amount: f128 = bet_value * @as(f128, @floatFromInt(fib_list.items[fib_list.items.len - 1]));
             if (aritmethic.sub(current_balance, bet_amount) < limit_balance) break :m_loop;
-            const bet_response = if (dice_game) try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator) else try placeARangeDiceBet(url, currency, bet_amount, faucet, limits, true, allocator);
+            const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, faucet, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, faucet, limits, true, allocator);
             const bet_roll = bet_response.number.?;
             const bet_result = bet_response.result;
 
@@ -112,6 +113,7 @@ fn safety(allocator: std.mem.Allocator, bet_slip: *std.ArrayList(f128), base_val
 
 pub fn labouchere(
     url: []const u8,
+    client: *std.http.Client,
     currency: []const u8,
     element_f: f128,
     faucet: bool,
@@ -191,7 +193,7 @@ pub fn labouchere(
             return;
         }
 
-        const bet_response = if (dice_game) try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator) else try placeARangeDiceBet(url, currency, bet_amount, faucet, limits, true, allocator);
+        const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, faucet, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, faucet, limits, true, allocator);
         number_of_bets += 1;
         total_value_betted = aritmethic.add(total_value_betted, bet_amount, 1.0);
         const bet_roll = bet_response.number.?;
@@ -244,6 +246,7 @@ pub fn labouchere(
 
 pub fn placeABet(
     url: []const u8,
+    client: *std.http.Client,
     currency: []const u8,
     amount_f: f128,
     faucet: bool,
@@ -264,7 +267,7 @@ pub fn placeABet(
 
     const slice = body_writter.written();
 
-    const response = try net.postUsingCurl(allocator, url, slice);
+    const response = try net.post(url, slice, client, allocator);
     var result = try std.json.parseFromSlice(types.DicePlayResponse, allocator, response, .{ .ignore_unknown_fields = true });
     defer result.deinit();
 
@@ -273,6 +276,7 @@ pub fn placeABet(
 
 pub fn placeARangeDiceBet(
     url: []const u8,
+    client: *std.http.Client,
     currency: []const u8,
     amount_f: f128,
     faucet: bool,
@@ -293,7 +297,7 @@ pub fn placeARangeDiceBet(
 
     const slice = body_writter.written();
 
-    const response = try net.postUsingCurl(allocator, url, slice);
+    const response = try net.post(url, slice, client, allocator);
     var result = try std.json.parseFromSlice(types.DicePlayResponse, allocator, response, .{ .ignore_unknown_fields = true });
     defer result.deinit();
 
