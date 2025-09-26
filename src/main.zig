@@ -165,8 +165,10 @@ pub fn main() !void {
     try stdout.writeAll("Enter a number for the chosen currency: ");
     try stdout.flush();
     const coin_num_str = try input(allocator);
-    const coin_num = try parseInt(u16, coin_num_str, 10) - 1;
-    const coin_name = possible_currencies.items[coin_num];
+    const coin_num = (parseInt(u16, coin_num_str, 10) catch 256) - 1;
+    const coin_name = if (coin_num < possible_currencies.items.len) possible_currencies.items[coin_num] else "DECOY";
+    try stdout.print("Chosen currency: {s}.\n", .{coin_name});
+    try stdout.flush();
     const minimum: u128 = if (std.mem.eql(u8, coin_name, "DECOY")) 1_000_000 else if (std.mem.eql(u8, coin_name, "BTC")) 1 else cg.calculateMinimum(allocator, &client, coin_name) catch |err| blk: {
         try stdout.print(
             "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
