@@ -41,9 +41,10 @@ pub fn fibSeq(
 
     var current_balance: f128 = starting_balance;
 
-    while (current_balance < goal_balance and current_balance > limit_balance) {
+    m_loop: while (current_balance < goal_balance and current_balance > limit_balance) {
         while (fib_list.items.len > 1) {
             const bet_amount: f128 = bet_value * @as(f128, @floatFromInt(fib_list.items[fib_list.items.len - 1]));
+            if (aritmethic.sub(current_balance, bet_amount) < limit_balance) break :m_loop;
             const bet_response = try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator);
             const bet_roll = bet_response.number.?;
             const bet_result = bet_response.result;
@@ -58,6 +59,7 @@ pub fn fibSeq(
                 _ = fib_list.pop();
                 try stdout.writeAll("Success!✅\n");
                 try stdout.flush();
+                if (current_balance > goal_balance) return;
             } else {
                 current_balance = aritmethic.sub(current_balance, bet_amount);
                 const next_fib = fib_list.items[fib_list.items.len - 2] + fib_list.items[fib_list.items.len - 1];
@@ -89,7 +91,7 @@ pub fn safety(allocator: std.mem.Allocator, bet_slip: *std.ArrayList(f128), base
     bet_slip.clearRetainingCapacity();
 
     while (sum != 0) {
-        for (1..4) |multi| {
+        for (1..3) |multi| {
             const element_int: u128 = base_value * @as(u128, multi);
             if (element_int > sum) {
                 break;
