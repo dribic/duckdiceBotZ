@@ -97,13 +97,13 @@ pub fn main() !void {
     const api = std.mem.trim(u8, api_raw, " \r\n\t");
 
     const duckdice_base_url = "https://duckdice.io/api/";
-    var user_info_url_buffer: [512]u8 = undefined;
+    var user_info_url_buffer: [96]u8 = undefined;
     const user_info_url = try std.fmt.bufPrint(&user_info_url_buffer, "{s}bot/user-info?api_key={s}", .{ duckdice_base_url, api });
 
-    var og_dice_url_buffer: [512]u8 = undefined;
+    var og_dice_url_buffer: [96]u8 = undefined;
     const og_dice_url = try std.fmt.bufPrint(&og_dice_url_buffer, "{s}dice/play?api_key={s}", .{ duckdice_base_url, api });
 
-    var range_dice_url_buffer: [512]u8 = undefined;
+    var range_dice_url_buffer: [96]u8 = undefined;
     const range_dice_url = try std.fmt.bufPrint(&range_dice_url_buffer, "{s}range-dice/play?api_key={s}", .{ duckdice_base_url, api });
 
     // Cleanups
@@ -272,6 +272,9 @@ pub fn main() !void {
             const bet_roll = bet_response.number.?;
             const bet_result = bet_response.result;
 
+            if (!dice_game) {
+                try stdout.print("Range: {d}-{d}\n", .{ limits.bottom(), limits.top() });
+            }
             try stdout.print("Roll: {d}\n", .{bet_roll});
 
             if (bet_result) {
