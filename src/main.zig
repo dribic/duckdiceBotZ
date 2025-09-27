@@ -103,6 +103,9 @@ pub fn main() !void {
     var og_dice_url_buffer: [512]u8 = undefined;
     const og_dice_url = try std.fmt.bufPrint(&og_dice_url_buffer, "{s}dice/play?api_key={s}", .{ duckdice_base_url, api });
 
+    var range_dice_url_buffer: [512]u8 = undefined;
+    const range_dice_url = try std.fmt.bufPrint(&range_dice_url_buffer, "{s}range-dice/play?api_key={s}", .{ duckdice_base_url, api });
+
     // Cleanups
     file.close();
     defer arena.deinit();
@@ -155,13 +158,22 @@ pub fn main() !void {
 
     const bet_strat = try input(allocator);
 
-    try stdout.writeAll("Possible choices:\n");
+    var dice_game: bool = true;
+    try stdout.writeAll("Choose Dice Game:\n1)[O]riginal Dice\n2)[R]ange Dice\n");
+    try stdout.print("--" ** 20 ++ "\n", .{});
+    try stdout.writeAll("Choice: ");
+    try stdout.flush();
+
+    const dice_choice = try input(allocator);
+    if (std.mem.eql(u8, dice_choice, "2") or std.mem.eql(u8, dice_choice, "R") or std.mem.eql(u8, dice_choice, "r")) {
+        dice_game = false;
+    }
+
+    try stdout.writeAll("Possible currency choices:\n");
     for (possible_currencies.items, 1..) |currency, idx| {
         try stdout.print("{d}: {s}\n", .{ idx, currency });
     }
     try stdout.print("--" ** 20 ++ "\n", .{});
-
-    // Test only
     try stdout.writeAll("Enter a number for the chosen currency: ");
     try stdout.flush();
     const coin_num_str = try input(allocator);
@@ -192,11 +204,20 @@ pub fn main() !void {
     }
 
     var is_high: bool = true;
-    try stdout.writeAll("Side:\n1)[H]igh\n2)[L]ow\nChoose: ");
-    try stdout.flush();
-    const input_h = try input(allocator);
-    if (std.mem.eql(u8, input_h, "2") or std.mem.eql(u8, input_h, "l") or std.mem.eql(u8, input_h, "L")) {
-        is_high = false;
+    var limits = types.Limit{};
+    var bottom: u16 = undefined;
+    if (dice_game) {
+        try stdout.writeAll("Side:\n1)[H]igh\n2)[L]ow\nChoose: ");
+        try stdout.flush();
+        const input_h = try input(allocator);
+        if (std.mem.eql(u8, input_h, "2") or std.mem.eql(u8, input_h, "l") or std.mem.eql(u8, input_h, "L")) {
+            is_high = false;
+        }
+    } else {
+        try stdout.writeAll("Choose bottom limit for your range: ");
+        try stdout.flush();
+        const input_l = try input(allocator);
+        bottom = parseInt(u16, input_l, 10) catch 5000;
     }
 
     var amount: f128 = 0.0;
@@ -230,11 +251,21 @@ pub fn main() !void {
 
     switch (bet_strat_choice) {
         '1', 'S', 's' => {
-            const bet_response = betting.placeABet(og_dice_url, coin_name, amount, faucet, "44", is_high, allocator) catch |err| {
-                try stdout.print("Bet didn't work. Error: {any}\n", .{err});
-                try stdout.flush();
-                std.process.exit(1);
-            };
+            var bet_response: types.Bet = undefined;
+            if (dice_game) {
+                bet_response = betting.placeABet(og_dice_url, coin_name, amount, faucet, "44", is_high, allocator) catch |err| {
+                    try stdout.print("Bet didn't work. Error: {any}\n", .{err});
+                    try stdout.flush();
+                    std.process.exit(1);
+                };
+            } else {
+                limits.set(bottom, 4399);
+                bet_response = betting.placeARangeDiceBet(range_dice_url, coin_name, amount, faucet, limits, true, allocator) catch |err| {
+                    try stdout.print("Bet didn't work. Error: {any}\n", .{err});
+                    try stdout.flush();
+                    std.process.exit(1);
+                };
+            }
 
             try stdout.writeAll("Bet successfully made:)\n");
 

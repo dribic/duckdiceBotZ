@@ -273,7 +273,7 @@ pub fn placeARangeDiceBet(
     var buf: [64]u8 = undefined;
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
-    const bet = types.RangeDicePlayRequest{ .amount = amount, .range = limits, .symbol = currency, .isIn = is_in, .faucet = faucet };
+    const bet = types.RangeDicePlayRequest{ .amount = amount, .range = &limits.range, .symbol = currency, .isIn = is_in, .faucet = faucet };
 
     var body_writter: std.io.Writer.Allocating = .init(allocator);
     const writer = &body_writter.writer;
