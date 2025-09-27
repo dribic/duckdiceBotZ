@@ -300,7 +300,12 @@ pub fn main() !void {
             try stdout.writeAll("Starting Labouchere run.\n");
             try stdout.flush();
 
-            try betting.labouchere(og_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, is_high, allocator);
+            if (dice_game) {
+                try betting.labouchere(og_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator);
+            } else {
+                limits.set(bottom, 4399);
+                try betting.labouchere(range_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator);
+            }
         },
         '3', 'F', 'f' => {
             try stdout.print("Current balance: {s} {s}\n", .{ current_as_str.?, coin_name });
@@ -318,7 +323,12 @@ pub fn main() !void {
             try stdout.writeAll("Starting Fibonacci run.\n");
             try stdout.flush();
 
-            try betting.fibSeq(og_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, allocator);
+            if (dice_game) {
+                try betting.fibSeq(og_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
+            } else {
+                limits.set(bottom, 4399);
+                try betting.fibSeq(range_dice_url, coin_name, amount, faucet, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
+            }
         },
         else => {
             try stdout.writeAll("You chose poorly!\n");

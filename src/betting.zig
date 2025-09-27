@@ -27,6 +27,8 @@ pub fn fibSeq(
     goal_balance: f128,
     limit_balance: f128,
     is_high: bool,
+    dice_game: bool,
+    limits: types.Limit,
     allocator: std.mem.Allocator,
 ) !void {
     var stdout_buffer: [1024]u8 = undefined;
@@ -45,12 +47,15 @@ pub fn fibSeq(
         while (fib_list.items.len > 1) {
             const bet_amount: f128 = bet_value * @as(f128, @floatFromInt(fib_list.items[fib_list.items.len - 1]));
             if (aritmethic.sub(current_balance, bet_amount) < limit_balance) break :m_loop;
-            const bet_response = try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator);
+            const bet_response = if (dice_game) try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator) else try placeARangeDiceBet(url, currency, bet_amount, faucet, limits, true, allocator);
             const bet_roll = bet_response.number.?;
             const bet_result = bet_response.result;
 
             try stdout.print("Current bet amount: {d:.8} {s}\n", .{ bet_amount, currency });
             try stdout.print("Current balance: {d:.8} {s}\nGoal: {d:.8} {s}\n", .{ current_balance, currency, goal_balance, currency });
+            if (!dice_game) {
+                try stdout.print("Range: {d}-{d}\n", .{ limits.bottom(), limits.top() });
+            }
             try stdout.print("Roll: {d}\n", .{bet_roll});
 
             if (bet_result) {
@@ -113,6 +118,8 @@ pub fn labouchere(
     starting_balance: f128,
     goal_balance: f128,
     is_high: bool,
+    dice_game: bool,
+    limits: types.Limit,
     allocator: std.mem.Allocator,
 ) !void {
     const element_int = aritmethic.floatToInt(element_f);
@@ -184,12 +191,15 @@ pub fn labouchere(
             return;
         }
 
-        const bet_response = try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator);
+        const bet_response = if (dice_game) try placeABet(url, currency, bet_amount, faucet, "44", is_high, allocator) else try placeARangeDiceBet(url, currency, bet_amount, faucet, limits, true, allocator);
         number_of_bets += 1;
         total_value_betted = aritmethic.add(total_value_betted, bet_amount, 1.0);
         const bet_roll = bet_response.number.?;
         const bet_result = bet_response.result;
 
+        if (!dice_game) {
+            try stdout.print("Range: {d}-{d}\n", .{ limits.bottom(), limits.top() });
+        }
         try stdout.print("Roll: {d}\n", .{bet_roll});
 
         if (bet_result) {
