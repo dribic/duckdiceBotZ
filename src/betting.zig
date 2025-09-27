@@ -260,3 +260,32 @@ pub fn placeABet(
 
     return result.value.bet.?;
 }
+
+pub fn placeARangeDiceBet(
+    url: []const u8,
+    currency: []const u8,
+    amount_f: f128,
+    faucet: bool,
+    limits: types.Limit,
+    is_in: bool,
+    allocator: std.mem.Allocator,
+) !types.Bet {
+    var buf: [64]u8 = undefined;
+    const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
+
+    const bet = types.RangeDicePlayRequest{ .amount = amount, .range = limits, .symbol = currency, .isIn = is_in, .faucet = faucet };
+
+    var body_writter: std.io.Writer.Allocating = .init(allocator);
+    const writer = &body_writter.writer;
+    defer body_writter.deinit();
+
+    try std.json.Stringify.value(bet, .{ .emit_null_optional_fields = false, .whitespace = .minified }, writer);
+
+    const slice = body_writter.written();
+
+    const response = try net.postUsingCurl(allocator, url, slice);
+    var result = try std.json.parseFromSlice(types.DicePlayResponse, allocator, response, .{ .ignore_unknown_fields = true });
+    defer result.deinit();
+
+    return result.value.bet.?;
+}

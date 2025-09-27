@@ -183,17 +183,38 @@ pub const AbsoluteLevel = struct {
     xpPrev: ?i64 = null,
 };
 
-//---
+// Limits for Range Dice
+pub const Limit = struct {
+    range: [2]u16 = .{ 0, 0 }, // [bottom, top]
+
+    pub fn set(self: *Limit, prop_bot: u16, diff: u16) void {
+        if (prop_bot + diff > 9999) {
+            self.range[0] = 9999 - diff; // bottom
+        } else {
+            self.range[0] = prop_bot; // bottom
+        }
+        self.range[1] = self.range[0] + diff; // top
+    }
+
+    pub fn bottom(self: Limit) u16 {
+        return self.range[0];
+    }
+
+    pub fn top(self: Limit) u16 {
+        return self.range[1];
+    }
+};
+
 /// Structs for the Range Dice / Bet Make endpoint's request.
 pub const RangeDicePlayRequest = struct {
     /// The currency symbol for the bet, e.g., "BTC".
-    symbol: ?[]const u8 = null,
+    symbol: []const u8,
     /// An array of numbers defining the range.
-    range: ?[]const i64 = null,
+    range: []const u16,
     /// Whether the bet is "In" (true) or "Out" (false).
-    isIn: ?bool = null,
+    isIn: bool,
     /// The bet amount as a string, e.g., "0.01".
-    amount: ?[]const u8 = null,
+    amount: []const u8,
     /// User's wagering bonus hash (optional).
     userWageringBonusHash: ?[]const u8 = null,
     /// Faucet mode toggle (optional).
