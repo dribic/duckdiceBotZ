@@ -1,13 +1,13 @@
-<p align="center">
-  <img src="https://ziglang.org/logo/zig-logo.svg" alt="Zig Programming Language Logo" width="200" height="200"/>
-</p>
+<div align="center">
+  <img width="33%" src="zig-mark.svg">
+</div>
 
 # duckdiceBotZ
 
 duckdiceBotZ is a gambling bot for the website https://duckdice.io written in Zig. It is currently limited to implementing the
 Labouchere betting strategy and Fibonacci betting strategy.
 
-duckdiceBotZ currently needs curl installed on your system to work properly.
+**duckdiceBotZ currently needs curl installed on your system to work properly.**
 
 ## Zig version
 
