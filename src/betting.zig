@@ -86,7 +86,7 @@ pub fn fibSeq(
     }
 }
 
-pub fn safety(allocator: std.mem.Allocator, bet_slip: *std.ArrayList(f128), base_value: u128) !void {
+fn safety(allocator: std.mem.Allocator, bet_slip: *std.ArrayList(f128), base_value: u128) !void {
     var sum: u128 = 0;
     for (bet_slip.items) |bet_value| {
         const number = aritmethic.floatToInt(bet_value);
