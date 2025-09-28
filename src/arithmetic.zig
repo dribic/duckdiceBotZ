@@ -17,6 +17,22 @@ const std = @import("std");
 
 const DECIMAL_MULTI: f128 = 100_000_000;
 
+pub fn parseOdds(string: []const u8) ?f128 {
+    const number = std.fmt.parseFloat(f128, string) catch {
+        return null;
+    };
+    if (!std.math.isFinite(number)) {
+        return null;
+    }
+    if (number < 0) {
+        return null;
+    }
+    if (number > 99) {
+        return null;
+    }
+    return number;
+}
+
 pub fn addOnePercent(number: u128) u128 {
     if (number < 100) {
         return number + 1;

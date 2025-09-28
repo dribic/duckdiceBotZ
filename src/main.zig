@@ -265,15 +265,23 @@ pub fn main() !void {
                 try stdout.writeAll("Enter chance(example 88.88): ");
                 try stdout.flush();
                 const chance = try input(allocator);
+                const chance_n = aritmethic.parseOdds(chance);
                 if (dice_game) {
-                    const og_chance = if (chance.len > 0) chance else "44";
+                    const og_chance = if (chance_n != null) chance else "94";
                     bet_response = betting.placeABet(og_dice_url, coin_name, amount, faucet, og_chance, is_high, allocator) catch |err| {
                         try stdout.print("Bet didn't work. Error: {any}\n", .{err});
                         try stdout.flush();
                         continue :master_loop;
                     };
                 } else {
-                    const diff_f: f64 = (parseFloat(f64, chance) catch 44.0) * 100;
+                    const diff_f: f128 = blk: {
+                        if (chance_n) |value| {
+                            break :blk value * 100;
+                        }
+                        try stdout.print("Invalid odds input \"{s}\" -> using default 94.0\n", .{chance});
+                        try stdout.flush();
+                        break :blk 9400.0;
+                    };
                     const diff: u16 = @as(u16, @intFromFloat(diff_f)) - 1;
                     limits.set(bottom, diff);
                     bet_response = betting.placeARangeDiceBet(range_dice_url, coin_name, amount, faucet, limits, true, allocator) catch |err| {
