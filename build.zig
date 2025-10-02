@@ -20,6 +20,8 @@ pub fn build(b: *std.Build) void {
 
     const optimize = b.standardOptimizeOption(.{});
 
+    const exe_name = b.option([]const u8, "exe-name", "Override executable name") orelse "duckdiceBotZ";
+
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -27,7 +29,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const exe = b.addExecutable(.{
-        .name = "duckdiceBotZ",
+        .name = exe_name,
         .root_module = exe_mod,
     });
 
