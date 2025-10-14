@@ -53,11 +53,6 @@ pub fn post(
     var body_writter: std.io.Writer.Allocating = .init(allocator);
     defer body_writter.deinit();
 
-    for (bet_data) |value| {
-        std.debug.print("{c}", .{value});
-    }
-    std.debug.print("\n", .{});
-
     _ = try client.fetch(.{
         .method = .POST,
         .payload = bet_data,
@@ -67,11 +62,6 @@ pub fn post(
     });
 
     const slice = try body_writter.toOwnedSlice();
-
-    for (slice) |value| {
-        std.debug.print("{c}", .{value});
-    }
-    std.debug.print("\n", .{});
 
     // Return the response body to the caller
     return slice;
