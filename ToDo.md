@@ -2,9 +2,8 @@
 
 ## Immediate goals:
 1. Implement Bonus mode.
-2. Implement TLE mode.
+2. Implement more betting strategies.
 3. Figure out a better way to retrieve bonus balance.
-4. Implement more betting strategies.
 
 ## Long-term goals:
 1. Implement TUI.

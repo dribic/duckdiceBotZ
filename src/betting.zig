@@ -23,7 +23,8 @@ pub fn fibSeq(
     client: *std.http.Client,
     currency: []const u8,
     bet_value: f128,
-    faucet: bool,
+    spec_hash: ?[]const u8,
+    bet_mode: types.betMode,
     starting_balance: f128,
     goal_balance: f128,
     limit_balance: f128,
@@ -39,16 +40,16 @@ pub fn fibSeq(
     var fib_list: std.ArrayList(u16) = .empty;
     defer fib_list.deinit(allocator);
 
-    const factor: f128 = if (faucet) 1.2045 else 1.25;
+    const factor: f128 = if (bet_mode == .main) 1.25 else 1.2045;
     try fib_list.appendNTimes(allocator, 1, 2);
 
     var current_balance: f128 = starting_balance;
 
-    m_loop: while (current_balance < goal_balance and current_balance > limit_balance) {
+    master_loop: while (current_balance < goal_balance and current_balance > limit_balance) {
         while (fib_list.items.len > 1) {
             const bet_amount: f128 = bet_value * @as(f128, @floatFromInt(fib_list.items[fib_list.items.len - 1]));
-            if (aritmethic.sub(current_balance, bet_amount) < limit_balance) break :m_loop;
-            const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, faucet, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, faucet, limits, true, allocator);
+            if (aritmethic.sub(current_balance, bet_amount) < limit_balance) break :master_loop;
+            const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, spec_hash, bet_mode, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, spec_hash, bet_mode, limits, true, allocator);
             const bet_roll = bet_response.number.?;
             const bet_result = bet_response.result;
 
@@ -116,7 +117,8 @@ pub fn labouchere(
     client: *std.http.Client,
     currency: []const u8,
     element_f: f128,
-    faucet: bool,
+    spec_hash: ?[]const u8,
+    bet_mode: types.betMode,
     starting_balance: f128,
     goal_balance: f128,
     is_high: bool,
@@ -138,7 +140,7 @@ pub fn labouchere(
 
     try betting_seq.ensureTotalCapacity(allocator, 15); // Pre-allocating slightly larger capacity, because bet odds less than 50%
     try betting_seq.appendNTimes(allocator, element_f, 10);
-    const factor: f128 = if (faucet) 1.2045 else 1.25;
+    const factor: f128 = if (bet_mode == .main) 1.25 else 1.2045;
 
     try stdout.print("Betting slip:\n[ ", .{});
     for (betting_seq.items) |ele| {
@@ -193,7 +195,7 @@ pub fn labouchere(
             return;
         }
 
-        const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, faucet, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, faucet, limits, true, allocator);
+        const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, spec_hash, bet_mode, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, spec_hash, bet_mode, limits, true, allocator);
         number_of_bets += 1;
         total_value_betted = aritmethic.add(total_value_betted, bet_amount, 1.0);
         const bet_roll = bet_response.number.?;
@@ -249,7 +251,8 @@ pub fn placeABet(
     client: *std.http.Client,
     currency: []const u8,
     amount_f: f128,
-    faucet: bool,
+    spec_hash: ?[]const u8,
+    bet_mode: types.betMode,
     chance: []const u8,
     is_high: bool,
     allocator: std.mem.Allocator,
@@ -257,7 +260,11 @@ pub fn placeABet(
     var buf: [64]u8 = undefined;
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
-    const bet = types.OriginalDicePlayRequest{ .amount = amount, .chance = chance, .symbol = currency, .isHigh = is_high, .faucet = faucet };
+    const bet = switch (bet_mode) {
+        .faucet => types.OriginalDicePlayRequest{ .faucet = true, .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance },
+        .main => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance },
+        .tle => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance, .tleHash = spec_hash.? },
+    };
 
     var body_writter: std.io.Writer.Allocating = .init(allocator);
     const writer = &body_writter.writer;
@@ -279,7 +286,8 @@ pub fn placeARangeDiceBet(
     client: *std.http.Client,
     currency: []const u8,
     amount_f: f128,
-    faucet: bool,
+    spec_hash: ?[]const u8,
+    bet_mode: types.betMode,
     limits: types.Limit,
     is_in: bool,
     allocator: std.mem.Allocator,
@@ -287,7 +295,11 @@ pub fn placeARangeDiceBet(
     var buf: [64]u8 = undefined;
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
-    const bet = types.RangeDicePlayRequest{ .amount = amount, .range = &limits.range, .symbol = currency, .isIn = is_in, .faucet = faucet };
+    const bet = switch (bet_mode) {
+        .faucet => types.RangeDicePlayRequest{ .faucet = true, .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range },
+        .main => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range },
+        .tle => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range, .tleHash = spec_hash.? },
+    };
 
     var body_writter: std.io.Writer.Allocating = .init(allocator);
     const writer = &body_writter.writer;

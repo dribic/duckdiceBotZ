@@ -62,6 +62,13 @@ pub const TleItem = struct {
     status: ?[]const u8 = null,
 };
 
+pub const betMode = enum {
+    main,
+    faucet,
+    tle,
+    // bonus, // To be implemented
+};
+
 //---
 /// Structs for the Original Dice / Bet Make endpoint's request.
 pub const OriginalDicePlayRequest = struct {
