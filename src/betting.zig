@@ -18,6 +18,93 @@ const types = @import("types.zig");
 const net = @import("net.zig");
 const aritmethic = @import("arithmetic.zig");
 
+pub fn onePercentHunt(
+    url: []const u8,
+    client: *std.http.Client,
+    currency: []const u8,
+    bet_value: f128,
+    spec_hash: ?[]const u8,
+    bet_mode: types.betMode,
+    starting_balance: f128,
+    is_high: bool,
+    dice_game: bool,
+    limits: types.Limit,
+    allocator: std.mem.Allocator,
+) !void {
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+
+    const factor: f128 = if (bet_mode == .main) 104.21 else 102.11;
+
+    var current_bet: f128 = bet_value;
+    var current_balance: f128 = starting_balance;
+    var total_loss: f128 = current_bet;
+
+    for (1..100) |_| {
+        var current_bet_as_int: u128 = aritmethic.floatToInt(current_bet);
+        current_bet_as_int = aritmethic.addOnePercent(current_bet_as_int);
+        current_bet = aritmethic.intToFloat(current_bet_as_int);
+        total_loss = aritmethic.add(total_loss, current_bet, 1);
+    }
+
+    if (total_loss > starting_balance) {
+        try stdout.print("Your balance is too small for full run!\n", .{});
+        try stdout.print("Are you sure you want to continue? [Y]es/[N]o ", .{});
+        try stdout.flush();
+        const cont_str = try net.input(allocator);
+        if (!std.mem.eql(u8, cont_str, "Y") or !std.mem.eql(u8, cont_str, "y")) {
+            return;
+        }
+    }
+    try stdout.print("You can lose {d:.8} {s}.\n", .{ total_loss, currency });
+    try stdout.print("Are you sure you want to continue? [Y]es/[N]o ", .{});
+    try stdout.flush();
+    const cont_str = try net.input(allocator);
+    if (!std.mem.eql(u8, cont_str, "Y") or !std.mem.eql(u8, cont_str, "y")) {
+        return;
+    }
+
+    current_bet = bet_value;
+
+    for (1..100) |bet_number| {
+        if (current_balance < current_bet) {
+            try stdout.print("Balance too low!\n", .{});
+            try stdout.flush();
+            return;
+        }
+        try stdout.print("Current balance: {d:.8} {s}\n", .{ current_balance, currency });
+        try stdout.print("{d}. bet: {d:.8} {s}\n", .{ bet_number, current_bet, currency });
+        try stdout.flush();
+
+        current_balance = aritmethic.sub(current_balance, current_bet);
+
+        const bet = if (dice_game) try placeABet(url, client, currency, current_bet, spec_hash, bet_mode, ".95", is_high, allocator) else try placeARangeDiceBet(url, client, currency, current_bet, spec_hash, bet_mode, limits, true, allocator);
+        const bet_result = bet.result;
+        const roll = bet.number.?;
+
+        try stdout.print("Roll: {d}\n", .{roll});
+        if (!dice_game) {
+            try stdout.print("Limits: {d}-{d}\n", .{ limits.bottom(), limits.top() });
+        }
+        if (bet_result) {
+            try stdout.writeAll("Success!✅\n");
+            current_balance = aritmethic.add(current_balance, current_bet, factor);
+            try stdout.print("Current balance: {d:.8} {s}\n", .{ current_balance, currency });
+            try stdout.flush();
+            return;
+        } else {
+            try stdout.writeAll("Failure!☯ \n");
+            try stdout.print("Current balance: {d:.8} {s}\n", .{ current_balance, currency });
+            try stdout.flush();
+        }
+
+        var current_bet_as_int: u128 = aritmethic.floatToInt(current_bet);
+        current_bet_as_int = aritmethic.addOnePercent(current_bet_as_int);
+        current_bet = aritmethic.intToFloat(current_bet_as_int);
+    }
+}
+
 pub fn fibSeq(
     url: []const u8,
     client: *std.http.Client,
