@@ -73,7 +73,7 @@ pub fn main() !void {
             try stdout.print("API.txt not found. Please enter your API key: ", .{});
             try stdout.flush();
 
-            const api_key = try input(allocator);
+            const api_key = try net.input(allocator);
 
             const new_file = try std.fs.cwd().createFile("API.txt", .{});
             defer new_file.close();
@@ -169,7 +169,7 @@ pub fn main() !void {
         try stdout.writeAll("Choose betting strategy: ");
         try stdout.flush();
 
-        const bet_strat = try input(allocator);
+        const bet_strat = try net.input(allocator);
 
         const bet_strat_choice = if (bet_strat.len > 0) bet_strat[0] else 'z';
         if (bet_strat_choice == 'z') {
@@ -190,7 +190,7 @@ pub fn main() !void {
         try stdout.writeAll("Choice: ");
         try stdout.flush();
 
-        const dice_choice = try input(allocator);
+        const dice_choice = try net.input(allocator);
         if (std.mem.eql(u8, dice_choice, "2") or std.mem.eql(u8, dice_choice, "R") or std.mem.eql(u8, dice_choice, "r")) {
             dice_game = false;
         }
@@ -202,7 +202,7 @@ pub fn main() !void {
         try stdout.print("--" ** 20 ++ "\n", .{});
         try stdout.writeAll("Enter a number for the chosen currency: ");
         try stdout.flush();
-        const coin_num_str = try input(allocator);
+        const coin_num_str = try net.input(allocator);
         const coin_num = (parseInt(u16, coin_num_str, 10) catch 256) - 1;
         const coin_name = if (coin_num < possible_currencies.items.len) possible_currencies.items[coin_num] else "DECOY";
         try stdout.print("Chosen currency: {s}.\n", .{coin_name});
@@ -231,7 +231,7 @@ pub fn main() !void {
             }
             try stdout.writeAll("Choose: ");
             try stdout.flush();
-            const input_f = try input(allocator);
+            const input_f = try net.input(allocator);
             if (std.mem.eql(u8, input_f, "2") or std.mem.eql(u8, input_f, "f") or std.mem.eql(u8, input_f, "F")) {
                 bet_mode = .faucet;
             } else if ((std.mem.eql(u8, input_f, "3") or std.mem.eql(u8, input_f, "t") or std.mem.eql(u8, input_f, "T")) and tle_active) {
@@ -246,21 +246,21 @@ pub fn main() !void {
         if (dice_game) {
             try stdout.writeAll("Side:\n1)[H]igh\n2)[L]ow\nChoose: ");
             try stdout.flush();
-            const input_h = try input(allocator);
+            const input_h = try net.input(allocator);
             if (std.mem.eql(u8, input_h, "2") or std.mem.eql(u8, input_h, "l") or std.mem.eql(u8, input_h, "L")) {
                 is_high = false;
             }
         } else {
             try stdout.writeAll("Choose bottom limit for your range: ");
             try stdout.flush();
-            const input_l = try input(allocator);
+            const input_l = try net.input(allocator);
             bottom = parseInt(u16, input_l, 10) catch 5000;
         }
 
         var amount: f128 = 0.0;
         try stdout.writeAll("Enter bet amount: ");
         try stdout.flush();
-        const input_amount = try input(allocator);
+        const input_amount = try net.input(allocator);
         amount = parseFloat(f128, input_amount) catch 0.0;
         if (amount < minimum_as_f128) {
             try stdout.print("Chosen amount is lower than {d:.8} {s}\n", .{ minimum_as_f128, coin_name });
@@ -289,7 +289,7 @@ pub fn main() !void {
                 var bet_response: types.Bet = undefined;
                 try stdout.writeAll("Enter chance(example 88.88): ");
                 try stdout.flush();
-                const chance = try input(allocator);
+                const chance = try net.input(allocator);
                 const chance_n = aritmethic.parseOdds(chance);
                 if (dice_game) {
                     const og_chance = if (chance_n != null) chance else "94";
@@ -342,7 +342,7 @@ pub fn main() !void {
                 const goal_balance_default: u128 = aritmethic.floatToInt(current_balance_as_f) + 5 * amount_as_int;
                 try stdout.writeAll("Enter goal balance: ");
                 try stdout.flush();
-                const goal_balance_str = try input(allocator);
+                const goal_balance_str = try net.input(allocator);
                 var goal_balance_as_f: f128 = parseFloat(f128, goal_balance_str) catch aritmethic.intToFloat(goal_balance_default);
                 const goal_balance_as_int = aritmethic.floatToInt(goal_balance_as_f);
                 if (goal_balance_as_int > aritmethic.floatToInt(current_balance_as_f) + 10 * amount_as_int) {
@@ -365,11 +365,11 @@ pub fn main() !void {
                 const current_balance_as_f = try parseFloat(f128, current_as_str.?);
                 try stdout.writeAll("Enter goal balance: ");
                 try stdout.flush();
-                const goal_balance_str = try input(allocator);
+                const goal_balance_str = try net.input(allocator);
                 const goal_balance_as_f: f128 = parseFloat(f128, goal_balance_str) catch aritmethic.add(current_balance_as_f, amount, 3);
                 try stdout.writeAll("Enter lower limit: ");
                 try stdout.flush();
-                const limit_balance_str = try input(allocator);
+                const limit_balance_str = try net.input(allocator);
                 const limit_balance_as_f: f128 = parseFloat(f128, limit_balance_str) catch aritmethic.sub(current_balance_as_f, 10.0 * amount);
                 try stdout.print("Goal: {d:.8} {s}\nLimit: {d:.8} {s}\n", .{ goal_balance_as_f, coin_name, limit_balance_as_f, coin_name });
                 try stdout.writeAll("Starting Fibonacci run.\n");
@@ -392,16 +392,4 @@ pub fn main() !void {
         try stdout.print("--" ** 20 ++ "\n", .{});
         try stdout.flush();
     }
-}
-
-fn input(allocator: std.mem.Allocator) ![]const u8 {
-    var stdin_buf: [64]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
-
-    const line = try stdin.takeDelimiterExclusive('\n');
-    const trimmed = std.mem.trim(u8, line, " \t\r\n"); // Because Windows
-    const result = try allocator.dupe(u8, trimmed);
-
-    return result;
 }

@@ -118,3 +118,15 @@ pub fn postUsingCurl(
 
     return stdout_buf.toOwnedSlice(allocator);
 }
+
+pub fn input(allocator: std.mem.Allocator) ![]const u8 {
+    var stdin_buf: [64]u8 = undefined;
+    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    const stdin = &stdin_reader.interface;
+
+    const line = try stdin.takeDelimiterExclusive('\n');
+    const trimmed = std.mem.trim(u8, line, " \t\r\n"); // Because Windows
+    const result = try allocator.dupe(u8, trimmed);
+
+    return result;
+}
