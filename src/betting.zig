@@ -53,7 +53,8 @@ pub fn onePercentHunt(
         try stdout.print("Are you sure you want to continue? [Y]es/[N]o ", .{});
         try stdout.flush();
         const cont_str = try net.input(allocator);
-        if (!std.mem.eql(u8, cont_str, "Y") or !std.mem.eql(u8, cont_str, "y")) {
+        const check = std.mem.eql(u8, cont_str, "Y") or std.mem.eql(u8, cont_str, "y");
+        if (!check) {
             return;
         }
     }
@@ -61,7 +62,8 @@ pub fn onePercentHunt(
     try stdout.print("Are you sure you want to continue? [Y]es/[N]o ", .{});
     try stdout.flush();
     const cont_str = try net.input(allocator);
-    if (!std.mem.eql(u8, cont_str, "Y") or !std.mem.eql(u8, cont_str, "y")) {
+    const check = std.mem.eql(u8, cont_str, "Y") or std.mem.eql(u8, cont_str, "y");
+    if (!check) {
         return;
     }
 

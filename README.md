@@ -5,7 +5,7 @@
 # duckdiceBotZ
 
 duckdiceBotZ is a gambling bot for the website https://duckdice.io written in Zig. It is currently limited to implementing the
-Labouchere betting strategy and Fibonacci betting strategy.
+Labouchere betting strategy, Fibonacci betting strategy and 1% hunt betting strategy.
 
 ## Zig version
 
@@ -18,12 +18,17 @@ For planned features look at [ToDo](ToDo.md) list.
 ## Features
 
 - Currently only has CLI.
-- Implements the Fibonacci betting strategy for automated gambling on duckdice.io.
 - Implements the Labouchere betting strategy for automated gambling on duckdice.io.
+- Implements the Fibonacci betting strategy for automated gambling on duckdice.io.
+- Implements the 1% hunt betting strategy for automated gambling on duckdice.io.
 - Easy to configure and deploy.
-- Written in Zig for blazingly-fast performance and reliability.
+- Written in Zig for blazingly-fast performance.
 
 ## Usage
+
+Download one of the pre-built binaries in the Releases section.
+
+Or build from source following instructions below:
 
 1. Clone the repository:
 `git clone https://github.com/dribic/duckdiceBotZ.git`

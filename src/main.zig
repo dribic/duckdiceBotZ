@@ -181,7 +181,7 @@ pub fn main() !void {
 
         var dice_game: bool = true;
         if (std.mem.eql(u8, bet_strat, "0") or std.mem.eql(u8, bet_strat, "e") or std.mem.eql(u8, bet_strat, "E")) {
-            try stdout.writeAll("Have a nice day.😀\nGoodbye.\n");
+            try stdout.writeAll("Have a nice day.\nGoodbye.\n");
             try stdout.flush();
             break :master_loop;
         }
