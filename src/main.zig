@@ -164,7 +164,8 @@ pub fn main() !void {
         }
         try stdout.print("--" ** 20 ++ "\n", .{});
         try stdout.writeAll("Betting strategies:\n1)[S]ingle bet\n");
-        try stdout.writeAll("2)[L]abouchere\n3)[F]ibonacci\n0)[E]xit\n");
+        try stdout.writeAll("2)[L]abouchere\n3)[F]ibonacci\n");
+        try stdout.writeAll("4)[O]ne percent hunt\n0)[E]xit\n");
         try stdout.print("--" ** 20 ++ "\n", .{});
         try stdout.writeAll("Choose betting strategy: ");
         try stdout.flush();
@@ -380,6 +381,18 @@ pub fn main() !void {
                 } else {
                     limits.set(bottom, 4399);
                     try betting.fibSeq(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
+                }
+            },
+            '4', 'o', 'O' => {
+                const current_balance_as_f = try parseFloat(f128, current_as_str.?);
+                try stdout.writeAll("Starting One percent hunt.\n");
+                try stdout.flush();
+
+                if (dice_game) {
+                    try betting.onePercentHunt(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator);
+                } else {
+                    limits.set(bottom, 94);
+                    try betting.onePercentHunt(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator);
                 }
             },
             else => {
