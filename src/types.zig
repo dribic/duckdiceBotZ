@@ -26,7 +26,7 @@ pub const UserInfoResponse = struct {
     lastDeposit: ?LastDeposit = null,
     wagered: ?[]const WageredItem = null,
     balances: ?[]const BalanceItem = null,
-    wageringBonuses: ?[]const WageringBonus = null,
+    wageringBonuses: []const WageringBonus,
     tle: []const TleItem,
 };
 

@@ -125,6 +125,38 @@ pub fn main() !void {
         var possible_currencies = std.ArrayList([]const u8){};
         defer possible_currencies.deinit(allocator);
 
+        const bonuses = user_data.wageringBonuses;
+        var bonus_active: bool = false;
+        var bonus_hash: ?[]const u8 = null;
+        var bonus_symbol: ?[]const u8 = null;
+        //var bonus_curr: f128 = 0.0;
+        if (bonuses.len > 0) {
+            try stdout.print("Wagering Bonus:\n", .{});
+            if (bonuses[0].name) |name| {
+                try stdout.print("   Name: {s}\n", .{name});
+            }
+            if (bonuses[0].type) |b_type| {
+                try stdout.print("   Type: {s}\n", .{b_type});
+            }
+            if (bonuses[0].hash) |hash| {
+                bonus_hash = hash;
+                try stdout.print("   Hash: {s}\n", .{hash});
+            }
+            if (bonuses[0].status) |status| {
+                try stdout.print("   Status: {s}\n", .{status});
+                if (std.mem.eql(u8, status, "active")) {
+                    bonus_active = true;
+                }
+            }
+            if (bonuses[0].symbol) |symbol| {
+                bonus_symbol = symbol;
+                try stdout.print("   Symbol: {s}\n", .{symbol});
+            }
+            if (bonuses[0].margin) |margin| {
+                try stdout.print("   Margin: {s}\n", .{margin});
+            }
+        }
+
         if (user_data.balances) |balances| {
             try stdout.print("User's balances:\n", .{});
             for (balances) |balance| {
