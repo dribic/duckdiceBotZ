@@ -142,24 +142,30 @@ pub fn main() !void {
             try stdout.flush();
             std.process.exit(1);
         }
+        try stdout.flush();
+
         var tle_active: bool = false;
         try stdout.print("--" ** 20 ++ "\n", .{});
         var tle_name: ?[]const u8 = null;
         var tle_hash: ?[]const u8 = null;
         if (result.value.tle) |tle_item| {
-            tle_active = true;
-            try stdout.print("Time Limited Event:\n", .{});
-            try stdout.print("--" ** 20 ++ "\n", .{});
-            if (tle_item[0].name) |name| {
-                tle_name = name;
-                try stdout.print("   Name: {s}\n", .{name});
-            }
-            if (tle_item[0].hash) |hash| {
-                tle_hash = hash;
-                try stdout.print("   Hash: {s}\n", .{hash});
-            }
-            if (tle_item[0].status) |status| {
-                try stdout.print("   Status: {s}\n", .{status});
+            if (tle_item.len > 0) {
+                try stdout.print("Time Limited Event:\n", .{});
+                try stdout.print("--" ** 20 ++ "\n", .{});
+                if (tle_item[0].name) |name| {
+                    tle_name = name;
+                    try stdout.print("   Name: {s}\n", .{name});
+                }
+                if (tle_item[0].hash) |hash| {
+                    tle_hash = hash;
+                    try stdout.print("   Hash: {s}\n", .{hash});
+                }
+                if (tle_item[0].status) |status| {
+                    try stdout.print("   Status: {s}\n", .{status});
+                    if (std.mem.eql(u8, status, "active")) {
+                        tle_active = true;
+                    }
+                }
             }
         }
         try stdout.print("--" ** 20 ++ "\n", .{});
