@@ -112,7 +112,9 @@ pub fn main() !void {
         var result = try std.json.parseFromSlice(types.UserInfoResponse, allocator, response_body, .{ .ignore_unknown_fields = true });
         defer result.deinit();
 
-        if (result.value.username) |username| {
+        const user_data: types.UserInfoResponse = result.value;
+
+        if (user_data.username) |username| {
             try stdout.print("Parsed user data for: {s}\n", .{username});
         } else {
             try stdout.print("User data loaded, but username field was missing.\n", .{});
@@ -123,7 +125,7 @@ pub fn main() !void {
         var possible_currencies = std.ArrayList([]const u8){};
         defer possible_currencies.deinit(allocator);
 
-        if (result.value.balances) |balances| {
+        if (user_data.balances) |balances| {
             try stdout.print("User's balances:\n", .{});
             for (balances) |balance| {
                 if (balance.currency) |currency| {
@@ -148,23 +150,21 @@ pub fn main() !void {
         try stdout.print("--" ** 20 ++ "\n", .{});
         var tle_name: ?[]const u8 = null;
         var tle_hash: ?[]const u8 = null;
-        if (result.value.tle) |tle_item| {
-            if (tle_item.len > 0) {
-                try stdout.print("Time Limited Event:\n", .{});
-                try stdout.print("--" ** 20 ++ "\n", .{});
-                if (tle_item[0].name) |name| {
-                    tle_name = name;
-                    try stdout.print("   Name: {s}\n", .{name});
-                }
-                if (tle_item[0].hash) |hash| {
-                    tle_hash = hash;
-                    try stdout.print("   Hash: {s}\n", .{hash});
-                }
-                if (tle_item[0].status) |status| {
-                    try stdout.print("   Status: {s}\n", .{status});
-                    if (std.mem.eql(u8, status, "active")) {
-                        tle_active = true;
-                    }
+        if (user_data.tle.len > 0) {
+            try stdout.print("Time Limited Event:\n", .{});
+            try stdout.print("--" ** 20 ++ "\n", .{});
+            if (user_data.tle[0].name) |name| {
+                tle_name = name;
+                try stdout.print("   Name: {s}\n", .{name});
+            }
+            if (user_data.tle[0].hash) |hash| {
+                tle_hash = hash;
+                try stdout.print("   Hash: {s}\n", .{hash});
+            }
+            if (user_data.tle[0].status) |status| {
+                try stdout.print("   Status: {s}\n", .{status});
+                if (std.mem.eql(u8, status, "active")) {
+                    tle_active = true;
                 }
             }
         }
@@ -276,7 +276,7 @@ pub fn main() !void {
             amount = minimum_as_f128;
         }
 
-        const balances = result.value.balances.?;
+        const balances = user_data.balances.?;
 
         var current_as_str: ?[]const u8 = null;
 
