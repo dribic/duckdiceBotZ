@@ -33,7 +33,7 @@ Or build from source following instructions below:
 1. Clone the repository:
 `git clone https://github.com/dribic/duckdiceBotZ.git`
 2. Build the bot:
-`zig build -Doptimize=ReleaseSmall`
+`zig build -Doptimize=ReleaseSafe`
 3. Run the bot.
 `./zig-out/bin/duckdiceBotZ` on **Linux** or `.\zig-out\bin\duckdiceBotZ.exe` on **Windows**.
 

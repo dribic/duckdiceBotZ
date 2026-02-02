@@ -66,7 +66,7 @@ pub const betMode = enum {
     main,
     faucet,
     tle,
-    // bonus, // To be implemented
+    bonus,
 };
 
 //---

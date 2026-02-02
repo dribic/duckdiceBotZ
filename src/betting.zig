@@ -81,7 +81,8 @@ pub fn onePercentHunt(
 
         current_balance = aritmethic.sub(current_balance, current_bet);
 
-        const bet = if (dice_game) try placeABet(url, client, currency, current_bet, spec_hash, bet_mode, ".95", is_high, allocator) else try placeARangeDiceBet(url, client, currency, current_bet, spec_hash, bet_mode, limits, true, allocator);
+        const bet_response = if (dice_game) try placeABet(url, client, currency, current_bet, spec_hash, bet_mode, ".95", is_high, allocator) else try placeARangeDiceBet(url, client, currency, current_bet, spec_hash, bet_mode, limits, true, allocator);
+        const bet = bet_response.bet.?;
         const bet_result = bet.result;
         const roll = bet.number.?;
 
@@ -139,8 +140,9 @@ pub fn fibSeq(
             const bet_amount: f128 = bet_value * @as(f128, @floatFromInt(fib_list.items[fib_list.items.len - 1]));
             if (aritmethic.sub(current_balance, bet_amount) < limit_balance) break :master_loop;
             const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, spec_hash, bet_mode, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, spec_hash, bet_mode, limits, true, allocator);
-            const bet_roll = bet_response.number.?;
-            const bet_result = bet_response.result;
+            const bet = bet_response.bet.?;
+            const bet_roll = bet.number.?;
+            const bet_result = bet.result;
 
             try stdout.print("Current bet amount: {d:.8} {s}\n", .{ bet_amount, currency });
             try stdout.print("Current balance: {d:.8} {s}\nGoal: {d:.8} {s}\n", .{ current_balance, currency, goal_balance, currency });
@@ -285,10 +287,11 @@ pub fn labouchere(
         }
 
         const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, spec_hash, bet_mode, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, spec_hash, bet_mode, limits, true, allocator);
+        const bet = bet_response.bet.?;
         number_of_bets += 1;
         total_value_betted = aritmethic.add(total_value_betted, bet_amount, 1.0);
-        const bet_roll = bet_response.number.?;
-        const bet_result = bet_response.result;
+        const bet_roll = bet.number.?;
+        const bet_result = bet.result;
 
         if (!dice_game) {
             try stdout.print("Range: {d}-{d}\n", .{ limits.bottom(), limits.top() });
@@ -345,7 +348,7 @@ pub fn placeABet(
     chance: []const u8,
     is_high: bool,
     allocator: std.mem.Allocator,
-) !types.Bet {
+) !types.DicePlayResponse {
     var buf: [64]u8 = undefined;
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
@@ -353,6 +356,7 @@ pub fn placeABet(
         .faucet => types.OriginalDicePlayRequest{ .faucet = true, .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance },
         .main => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance },
         .tle => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance, .tleHash = spec_hash.? },
+        .bonus => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance, .userWageringBonusHash = spec_hash.? },
     };
 
     var body_writter: std.io.Writer.Allocating = .init(allocator);
@@ -367,7 +371,7 @@ pub fn placeABet(
     var result = try std.json.parseFromSlice(types.DicePlayResponse, allocator, response, .{ .ignore_unknown_fields = true });
     defer result.deinit();
 
-    return result.value.bet.?;
+    return result.value;
 }
 
 pub fn placeARangeDiceBet(
@@ -380,7 +384,7 @@ pub fn placeARangeDiceBet(
     limits: types.Limit,
     is_in: bool,
     allocator: std.mem.Allocator,
-) !types.Bet {
+) !types.DicePlayResponse {
     var buf: [64]u8 = undefined;
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
@@ -388,6 +392,7 @@ pub fn placeARangeDiceBet(
         .faucet => types.RangeDicePlayRequest{ .faucet = true, .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range },
         .main => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range },
         .tle => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range, .tleHash = spec_hash.? },
+        .bonus => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range, .userWageringBonusHash = spec_hash.? },
     };
 
     var body_writter: std.io.Writer.Allocating = .init(allocator);
@@ -402,5 +407,5 @@ pub fn placeARangeDiceBet(
     var result = try std.json.parseFromSlice(types.DicePlayResponse, allocator, response, .{ .ignore_unknown_fields = true });
     defer result.deinit();
 
-    return result.value.bet.?;
+    return result.value;
 }

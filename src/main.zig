@@ -129,8 +129,9 @@ pub fn main() !void {
         var bonus_active: bool = false;
         var bonus_hash: ?[]const u8 = null;
         var bonus_symbol: ?[]const u8 = null;
-        //var bonus_curr: f128 = 0.0;
+        var bonus_curr: ?[]const u8 = null;
         if (bonuses.len > 0) {
+            try stdout.print("--" ** 20 ++ "\n", .{});
             try stdout.print("Wagering Bonus:\n", .{});
             if (bonuses[0].name) |name| {
                 try stdout.print("   Name: {s}\n", .{name});
@@ -153,9 +154,26 @@ pub fn main() !void {
                 try stdout.print("   Symbol: {s}\n", .{symbol});
             }
             if (bonuses[0].margin) |margin| {
-                try stdout.print("   Margin: {s}\n", .{margin});
+                try stdout.print("   Margin: {s} {s}\n", .{ margin, bonus_symbol.? });
+                const max_bonus_win = try parseFloat(f128, margin);
+                try stdout.print("   Max win: {d:.8} {s}\n", .{ max_bonus_win * 3.0, bonus_symbol.? });
             }
+
+            const bonus_minimum: u128 = if (std.mem.eql(u8, bonus_symbol.?, "BTC")) 1 else cg.calculateMinimum(allocator, &client, bonus_symbol.?) catch |err| blk: {
+                try stdout.print(
+                    "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
+                    .{ bonus_symbol.?, err },
+                );
+                try stdout.flush();
+                break :blk 1;
+            };
+            const bonus_minimum_as_f128 = aritmethic.intToFloat(bonus_minimum);
+            const bonus_info_bet = try betting.placeABet(og_dice_url, &client, bonus_symbol.?, bonus_minimum_as_f128, bonus_hash.?, types.betMode.bonus, "94", true, allocator);
+            bonus_curr = bonus_info_bet.user.?.balance.?;
+            try stdout.print("   Bonus balance: {s} {s}\n", .{ bonus_curr.?, bonus_symbol.? });
         }
+
+        try stdout.print("--" ** 20 ++ "\n", .{});
 
         if (user_data.balances) |balances| {
             try stdout.print("User's balances:\n", .{});
@@ -177,6 +195,10 @@ pub fn main() !void {
             std.process.exit(1);
         }
         try stdout.flush();
+
+        if (!containsString(possible_currencies.items, bonus_symbol.?)) {
+            try possible_currencies.append(allocator, bonus_symbol.?);
+        }
 
         var tle_active: bool = false;
         try stdout.print("--" ** 20 ++ "\n", .{});
@@ -268,6 +290,9 @@ pub fn main() !void {
             if (tle_active) {
                 try stdout.print("3)[T]ime Limited Event: {s}\n", .{tle_name.?});
             }
+            if (bonus_active) {
+                try stdout.print("4)[B]onus Event\n", .{});
+            }
             try stdout.writeAll("Choose: ");
             try stdout.flush();
             const input_f = try net.input(allocator);
@@ -276,6 +301,9 @@ pub fn main() !void {
             } else if ((std.mem.eql(u8, input_f, "3") or std.mem.eql(u8, input_f, "t") or std.mem.eql(u8, input_f, "T")) and tle_active) {
                 bet_mode = .tle;
                 spec_hash = tle_hash.?;
+            } else if ((std.mem.eql(u8, input_f, "4") or std.mem.eql(u8, input_f, "b") or std.mem.eql(u8, input_f, "B")) and bonus_active) {
+                bet_mode = .bonus;
+                spec_hash = bonus_hash.?;
             }
         }
 
@@ -311,21 +339,25 @@ pub fn main() !void {
         const balances = user_data.balances.?;
 
         var current_as_str: ?[]const u8 = null;
-
-        for (balances) |balance_item| {
-            if (std.mem.eql(u8, coin_name, balance_item.currency.?)) {
-                if (bet_mode == .faucet) {
-                    current_as_str = balance_item.faucet;
-                } else {
-                    current_as_str = balance_item.main;
+        if (bet_mode == .bonus) {
+            current_as_str = bonus_curr.?;
+        } else {
+            for (balances) |balance_item| {
+                if (std.mem.eql(u8, coin_name, balance_item.currency.?)) {
+                    if (bet_mode == .faucet) {
+                        current_as_str = balance_item.faucet;
+                    } else {
+                        current_as_str = balance_item.main;
+                    }
+                    break;
                 }
-                break;
             }
         }
 
         switch (bet_strat_choice) {
             '1', 'S', 's' => {
-                var bet_response: types.Bet = undefined;
+                var bet_response: types.DicePlayResponse = undefined;
+                var bet: types.Bet = undefined;
                 try stdout.writeAll("Enter chance(example 88.88): ");
                 try stdout.flush();
                 const chance = try net.input(allocator);
@@ -337,6 +369,7 @@ pub fn main() !void {
                         try stdout.flush();
                         continue :master_loop;
                     };
+                    bet = bet_response.bet.?;
                 } else {
                     const diff_f: f128 = blk: {
                         if (chance_n) |value| {
@@ -353,12 +386,13 @@ pub fn main() !void {
                         try stdout.flush();
                         continue :master_loop;
                     };
+                    bet = bet_response.bet.?;
                 }
 
                 try stdout.writeAll("Bet successfully made:)\n");
 
-                const bet_roll = bet_response.number.?;
-                const bet_result = bet_response.result;
+                const bet_roll = bet.number.?;
+                const bet_result = bet.result;
 
                 if (!dice_game) {
                     try stdout.print("Range: {d}-{d}\n", .{ limits.bottom(), limits.top() });
@@ -443,4 +477,13 @@ pub fn main() !void {
         try stdout.print("--" ** 20 ++ "\n", .{});
         try stdout.flush();
     }
+}
+
+fn containsString(list: []const []const u8, value: []const u8) bool {
+    for (list) |item| {
+        if (std.mem.eql(u8, item, value)) {
+            return true;
+        }
+    }
+    return false;
 }
