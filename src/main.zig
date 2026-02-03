@@ -196,8 +196,10 @@ pub fn main() !void {
         }
         try stdout.flush();
 
-        if (!containsString(possible_currencies.items, bonus_symbol.?)) {
-            try possible_currencies.append(allocator, bonus_symbol.?);
+        if (bonus_symbol != null) {
+            if (!containsString(possible_currencies.items, bonus_symbol.?)) {
+                try possible_currencies.append(allocator, bonus_symbol.?);
+            }
         }
 
         var tle_active: bool = false;
