@@ -30,11 +30,9 @@ pub fn onePercentHunt(
     dice_game: bool,
     limits: types.Limit,
     allocator: std.mem.Allocator,
+    init: std.process.Init,
+    stdout: *std.Io.Writer,
 ) !void {
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
-
     const factor: f128 = if (bet_mode == .main) 104.21 else 102.11;
 
     var current_bet: f128 = bet_value;
@@ -52,7 +50,7 @@ pub fn onePercentHunt(
         try stdout.print("Your balance is too small for full run!\n", .{});
         try stdout.print("Are you sure you want to continue? [Y]es/[N]o ", .{});
         try stdout.flush();
-        const cont_str = try net.input(allocator);
+        const cont_str = try net.input(init, allocator);
         const check = std.mem.eql(u8, cont_str, "Y") or std.mem.eql(u8, cont_str, "y");
         if (!check) {
             return;
@@ -61,7 +59,7 @@ pub fn onePercentHunt(
     try stdout.print("You can lose {d:.8} {s}.\n", .{ total_loss, currency });
     try stdout.print("Are you sure you want to continue? [Y]es/[N]o ", .{});
     try stdout.flush();
-    const cont_str = try net.input(allocator);
+    const cont_str = try net.input(init, allocator);
     const check = std.mem.eql(u8, cont_str, "Y") or std.mem.eql(u8, cont_str, "y");
     if (!check) {
         return;
@@ -122,11 +120,8 @@ pub fn fibSeq(
     dice_game: bool,
     limits: types.Limit,
     allocator: std.mem.Allocator,
+    stdout: *std.Io.Writer,
 ) !void {
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
-
     var fib_list: std.ArrayList(u16) = .empty;
     defer fib_list.deinit(allocator);
 
@@ -216,17 +211,17 @@ pub fn labouchere(
     dice_game: bool,
     limits: types.Limit,
     allocator: std.mem.Allocator,
+    init: std.process.Init,
+    stdout: *std.Io.Writer,
 ) !void {
+    const io = init.io;
     const element_int = aritmethic.floatToInt(element_f);
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
 
     var number_of_bets: u16 = 0;
     var number_of_wins: u16 = 0;
     var number_of_loses: u16 = 0;
     var total_value_betted: f128 = 0;
-    var betting_seq = std.ArrayList(f128){};
+    var betting_seq: std.ArrayList(f128) = .empty;
     defer betting_seq.deinit(allocator);
 
     try betting_seq.ensureTotalCapacity(allocator, 15); // Pre-allocating slightly larger capacity, because bet odds less than 50%
@@ -244,11 +239,7 @@ pub fn labouchere(
 
     while (current_balance < goal_balance) {
         if (betting_seq.items.len == 0) {
-            const msgs = [_][]const u8{ "🖖 Sequence collapsed... initiating Vulcan logic reboot.", "✨ The Force has balanced... resetting Jedi sequence.", "🌀 Wormhole unstable — recalibrating Stargate sequence.", "🚀 Sequence fell out of warp — reinitializing at starbase.", "💫 Hyperdrive misfire! Restoring sequence from backup crystals.", "⚡ Phaser overload detected — diverting power to new sequence.", "👽 Borg interference detected — sequence has been assimilated, regenerating...", "🌌 Death Star superlaser misfire — reconstructing sequence from debris.", "🔮 ZPM fluctuations detected — Stargate dialing new sequence.", "📡 Subspace anomaly detected — rematerializing betting sequence.", "🛰️ Shields at 10%! Diverting power to sequence restoration.", "🕳️ Sequence fell into a black hole... retrieving via temporal anomaly.", "🤖 R2-D2 rerouted power — rebooting sequence systems.", "🪐 Sequence lost in the Gamma Quadrant... calling USS Defiant for backup." };
-
-            const idx = std.crypto.random.intRangeLessThan(usize, 0, msgs.len);
-
-            try stdout.print("{s}\n", .{msgs[idx]});
+            try stdout.print("Sequence empty prematurely. Building a new starting sequence...\n", .{});
             try stdout.flush();
 
             try betting_seq.appendNTimes(allocator, element_f, 10);
@@ -275,7 +266,7 @@ pub fn labouchere(
         if (bet_as_int >= element_int * 11 or first_as_int >= element_int * 4) {
             try stdout.print("⚠️ Safety triggered, reconstructing slip... cooling down for 5 seconds.\n", .{});
             try stdout.flush();
-            std.Thread.sleep(5 * std.time.ns_per_s);
+            try io.sleep(.fromSeconds(5), .awake);
             try safety(allocator, &betting_seq, element_int);
             continue;
         }
@@ -359,7 +350,7 @@ pub fn placeABet(
         .bonus => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance, .userWageringBonusHash = spec_hash.? },
     };
 
-    var body_writter: std.io.Writer.Allocating = .init(allocator);
+    var body_writter: std.Io.Writer.Allocating = .init(allocator);
     const writer = &body_writter.writer;
     defer body_writter.deinit();
 
@@ -395,7 +386,7 @@ pub fn placeARangeDiceBet(
         .bonus => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range, .userWageringBonusHash = spec_hash.? },
     };
 
-    var body_writter: std.io.Writer.Allocating = .init(allocator);
+    var body_writter: std.Io.Writer.Allocating = .init(allocator);
     const writer = &body_writter.writer;
     defer body_writter.deinit();
 

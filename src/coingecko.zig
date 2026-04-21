@@ -20,15 +20,20 @@ const aritmethic = @import("arithmetic.zig");
 const PricesMap = std.StringHashMap(f128);
 const CoinsMap = std.StringHashMap(PricesMap);
 
-pub fn loadCoinMap(allocator: std.mem.Allocator) !std.StringHashMap([]const u8) {
+pub fn loadCoinMap(init: std.process.Init, allocator: std.mem.Allocator) !std.StringHashMap([]const u8) {
+    const io = init.io;
     var map = std.StringHashMap([]const u8).init(allocator);
 
     // --- Read file ---
-    const file = try std.fs.cwd().openFile("dd-coins.json", .{ .mode = .read_only });
-    defer file.close();
+    const file = try std.Io.Dir.cwd().openFile(io, "dd-coins.json", .{ .mode = .read_only });
+    defer file.close(io);
 
-    const json_bytes = try file.readToEndAlloc(allocator, 8192);
+    const buffer: []u8 = try allocator.alloc(u8, 8192);
+    var reader = file.reader(io, buffer);
+    const reader_interface = &reader.interface;
+    const json_bytes = try reader_interface.allocRemaining(allocator, .limited(8192));
     defer allocator.free(json_bytes);
+    defer allocator.free(buffer);
 
     // --- Parse JSON ---
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
@@ -53,8 +58,8 @@ pub fn loadCoinMap(allocator: std.mem.Allocator) !std.StringHashMap([]const u8) 
     return map;
 }
 
-pub fn calculateMinimum(allocator: std.mem.Allocator, client: *std.http.Client, dd_coin_name: []const u8) !u128 {
-    var coingecko_names = try loadCoinMap(allocator);
+pub fn calculateMinimum(init: std.process.Init, allocator: std.mem.Allocator, client: *std.http.Client, dd_coin_name: []const u8) !u128 {
+    var coingecko_names = try loadCoinMap(init, allocator);
     defer coingecko_names.deinit();
 
     const coin = coingecko_names.get(dd_coin_name) orelse dd_coin_name;

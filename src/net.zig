@@ -24,7 +24,7 @@ pub fn get(
         .{ .name = "X-Custom-Header", .value = "application" },
     };
 
-    var body_writter: std.io.Writer.Allocating = .init(allocator);
+    var body_writter: std.Io.Writer.Allocating = .init(allocator);
     defer body_writter.deinit();
 
     _ = try client.fetch(.{
@@ -50,7 +50,7 @@ pub fn post(
         .{ .name = "Content-Type", .value = "application/json" },
     };
 
-    var body_writter: std.io.Writer.Allocating = .init(allocator);
+    var body_writter: std.Io.Writer.Allocating = .init(allocator);
     defer body_writter.deinit();
 
     _ = try client.fetch(.{
@@ -119,9 +119,10 @@ pub fn postUsingCurl(
     return stdout_buf.toOwnedSlice(allocator);
 }
 
-pub fn input(allocator: std.mem.Allocator) ![]const u8 {
+pub fn input(init: std.process.Init, allocator: std.mem.Allocator) ![]const u8 {
+    const io = init.io;
     var stdin_buf: [64]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+    var stdin_reader = std.Io.File.stdin().reader(io, &stdin_buf);
     const stdin = &stdin_reader.interface;
 
     const line = try stdin.takeDelimiterExclusive('\n');

@@ -9,7 +9,7 @@ Labouchere betting strategy, Fibonacci betting strategy and 1% hunt betting stra
 
 ## Zig version
 
-duckdiceBotZ uses Zig version 0.15.2
+duckdiceBotZ uses Zig version 0.16.0
 
 ## Plans
 

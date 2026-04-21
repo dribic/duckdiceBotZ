@@ -39,5 +39,6 @@
   "FDUSD": "first-digital-usd",
   "WBTC": "wrapped-bitcoin",
   "PEPE": "pepe",
-  "PUMP": "pump-fun"
+  "PUMP": "pump-fun",
+  "USD1": "usd1-wlfi",
 }

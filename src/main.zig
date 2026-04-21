@@ -20,12 +20,14 @@ const cg = @import("coingecko.zig");
 const aritmethic = @import("arithmetic.zig");
 const betting = @import("betting.zig");
 
+const Io = std.Io;
 const parseInt = std.fmt.parseInt;
 const parseFloat = std.fmt.parseFloat;
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
+    const io = init.io;
     var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = Io.File.stdout().writer(io, &stdout_buffer);
     const stdout = &stdout_writer.interface;
 
     const alloc = std.heap.page_allocator;
@@ -33,6 +35,7 @@ pub fn main() !void {
     const allocator = arena.allocator();
 
     var client = std.http.Client{
+        .io = io,
         .allocator = allocator,
     };
 
@@ -40,7 +43,7 @@ pub fn main() !void {
     const json_url = "https://drive.google.com/uc?export=download&id=1uwQzYrdDX5puSHLeonf45oTbhtht8c3g";
 
     const json_file_exists: bool = blk: {
-        _ = std.fs.cwd().access(json_file_path, .{}) catch |err| switch (err) {
+        _ = Io.Dir.access(Io.Dir.cwd(), io, json_file_path, .{}) catch |err| switch (err) {
             error.FileNotFound => break :blk false,
             else => return err,
         };
@@ -55,11 +58,11 @@ pub fn main() !void {
         try stdout.flush();
 
         const json_file_data = try net.get(json_url, &client, allocator);
-        const json_file = try std.fs.cwd().createFile(json_file_path, .{});
-        defer json_file.close();
+        const json_file = try Io.Dir.cwd().createFile(io, json_file_path, .{});
+        defer json_file.close(io);
 
         var json_buffer: [2048]u8 = undefined;
-        var writer = json_file.writer(&json_buffer);
+        var writer = json_file.writer(io, &json_buffer);
         const f_write = &writer.interface;
         try f_write.writeAll(json_file_data);
         try f_write.flush();
@@ -68,18 +71,18 @@ pub fn main() !void {
         try stdout.flush();
     }
 
-    const file = std.fs.cwd().openFile("API.txt", .{ .mode = .read_only }) catch |err| switch (err) {
+    const file = Io.Dir.cwd().openFile(io, "API.txt", .{ .mode = .read_only }) catch |err| switch (err) {
         error.FileNotFound => blk: {
             try stdout.print("API.txt not found. Please enter your API key: ", .{});
             try stdout.flush();
 
-            const api_key = try net.input(allocator);
+            const api_key = try net.input(init, allocator);
 
-            const new_file = try std.fs.cwd().createFile("API.txt", .{});
-            defer new_file.close();
-            try new_file.writeAll(api_key);
+            const new_file = try Io.Dir.cwd().createFile(io, "API.txt", .{});
+            defer new_file.close(io);
+            try new_file.writeStreamingAll(io, api_key);
 
-            break :blk try std.fs.cwd().openFile("API.txt", .{ .mode = .read_only });
+            break :blk try Io.Dir.cwd().openFile(io, "API.txt", .{ .mode = .read_only });
         },
         else => {
             try stdout.print("API file error: {any}\n", .{err});
@@ -88,7 +91,10 @@ pub fn main() !void {
         },
     };
 
-    const api_raw = try file.readToEndAlloc(allocator, 122);
+    var api_buffer: [122]u8 = undefined;
+    var api_file_reader = file.reader(io, &api_buffer);
+    const api_reader = &api_file_reader.interface;
+    const api_raw = try api_reader.allocRemaining(allocator, .limited(122));
     const api = std.mem.trim(u8, api_raw, " \r\n\t");
 
     const duckdice_base_url = "https://duckdice.io/api/";
@@ -102,7 +108,7 @@ pub fn main() !void {
     const range_dice_url = try std.fmt.bufPrint(&range_dice_url_buffer, "{s}range-dice/play?api_key={s}", .{ duckdice_base_url, api });
 
     // Cleanups
-    file.close();
+    file.close(io);
     defer arena.deinit();
 
     // Master loop
@@ -122,7 +128,7 @@ pub fn main() !void {
             std.process.exit(1);
         }
 
-        var possible_currencies = std.ArrayList([]const u8){};
+        var possible_currencies: std.ArrayList([]const u8) = .empty;
         defer possible_currencies.deinit(allocator);
 
         const bonuses = user_data.wageringBonuses;
@@ -159,7 +165,7 @@ pub fn main() !void {
                 try stdout.print("   Max win: {d:.8} {s}\n", .{ max_bonus_win * 3.0, bonus_symbol.? });
             }
 
-            const bonus_minimum: u128 = if (std.mem.eql(u8, bonus_symbol.?, "BTC")) 1 else cg.calculateMinimum(allocator, &client, bonus_symbol.?) catch |err| blk: {
+            const bonus_minimum: u128 = if (std.mem.eql(u8, bonus_symbol.?, "BTC")) 1 else cg.calculateMinimum(init, allocator, &client, bonus_symbol.?) catch |err| blk: {
                 try stdout.print(
                     "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
                     .{ bonus_symbol.?, err },
@@ -232,7 +238,7 @@ pub fn main() !void {
         try stdout.writeAll("Choose betting strategy: ");
         try stdout.flush();
 
-        const bet_strat = try net.input(allocator);
+        const bet_strat = try net.input(init, allocator);
 
         const bet_strat_choice = if (bet_strat.len > 0) bet_strat[0] else 'z';
         if (bet_strat_choice == 'z') {
@@ -253,7 +259,7 @@ pub fn main() !void {
         try stdout.writeAll("Choice: ");
         try stdout.flush();
 
-        const dice_choice = try net.input(allocator);
+        const dice_choice = try net.input(init, allocator);
         if (std.mem.eql(u8, dice_choice, "2") or std.mem.eql(u8, dice_choice, "R") or std.mem.eql(u8, dice_choice, "r")) {
             dice_game = false;
         }
@@ -265,7 +271,7 @@ pub fn main() !void {
         try stdout.print("--" ** 20 ++ "\n", .{});
         try stdout.writeAll("Enter a number for the chosen currency: ");
         try stdout.flush();
-        const coin_num_str = try net.input(allocator);
+        const coin_num_str = try net.input(init, allocator);
         const coin_num = (parseInt(u16, coin_num_str, 10) catch 256) - 1;
         const coin_name = if (coin_num < possible_currencies.items.len) possible_currencies.items[coin_num] else "DECOY";
         try stdout.print("Chosen currency: {s}.\n", .{coin_name});
@@ -273,7 +279,7 @@ pub fn main() !void {
             try stdout.print("Getting {s} minimum bet from CoinGecko...\n", .{coin_name});
         }
         try stdout.flush();
-        const minimum: u128 = if (std.mem.eql(u8, coin_name, "DECOY")) 1_000_000 else if (std.mem.eql(u8, coin_name, "BTC")) 1 else cg.calculateMinimum(allocator, &client, coin_name) catch |err| blk: {
+        const minimum: u128 = if (std.mem.eql(u8, coin_name, "DECOY")) 1_000_000 else if (std.mem.eql(u8, coin_name, "BTC")) 1 else cg.calculateMinimum(init, allocator, &client, coin_name) catch |err| blk: {
             try stdout.print(
                 "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
                 .{ coin_name, err },
@@ -297,7 +303,7 @@ pub fn main() !void {
             }
             try stdout.writeAll("Choose: ");
             try stdout.flush();
-            const input_f = try net.input(allocator);
+            const input_f = try net.input(init, allocator);
             if (std.mem.eql(u8, input_f, "2") or std.mem.eql(u8, input_f, "f") or std.mem.eql(u8, input_f, "F")) {
                 bet_mode = .faucet;
             } else if ((std.mem.eql(u8, input_f, "3") or std.mem.eql(u8, input_f, "t") or std.mem.eql(u8, input_f, "T")) and tle_active) {
@@ -315,21 +321,21 @@ pub fn main() !void {
         if (dice_game) {
             try stdout.writeAll("Side:\n1)[H]igh\n2)[L]ow\nChoose: ");
             try stdout.flush();
-            const input_h = try net.input(allocator);
+            const input_h = try net.input(init, allocator);
             if (std.mem.eql(u8, input_h, "2") or std.mem.eql(u8, input_h, "l") or std.mem.eql(u8, input_h, "L")) {
                 is_high = false;
             }
         } else {
             try stdout.writeAll("Choose bottom limit for your range: ");
             try stdout.flush();
-            const input_l = try net.input(allocator);
+            const input_l = try net.input(init, allocator);
             bottom = parseInt(u16, input_l, 10) catch 5000;
         }
 
         var amount: f128 = 0.0;
         try stdout.writeAll("Enter bet amount: ");
         try stdout.flush();
-        const input_amount = try net.input(allocator);
+        const input_amount = try net.input(init, allocator);
         amount = parseFloat(f128, input_amount) catch 0.0;
         if (amount < minimum_as_f128) {
             try stdout.print("Chosen amount is lower than {d:.8} {s}\n", .{ minimum_as_f128, coin_name });
@@ -362,7 +368,7 @@ pub fn main() !void {
                 var bet: types.Bet = undefined;
                 try stdout.writeAll("Enter chance(example 88.88): ");
                 try stdout.flush();
-                const chance = try net.input(allocator);
+                const chance = try net.input(init, allocator);
                 const chance_n = aritmethic.parseOdds(chance);
                 if (dice_game) {
                     const og_chance = if (chance_n != null) chance else "94";
@@ -417,7 +423,7 @@ pub fn main() !void {
                 const goal_balance_default: u128 = aritmethic.floatToInt(current_balance_as_f) + 5 * amount_as_int;
                 try stdout.writeAll("Enter goal balance: ");
                 try stdout.flush();
-                const goal_balance_str = try net.input(allocator);
+                const goal_balance_str = try net.input(init, allocator);
                 var goal_balance_as_f: f128 = parseFloat(f128, goal_balance_str) catch aritmethic.intToFloat(goal_balance_default);
                 const goal_balance_as_int = aritmethic.floatToInt(goal_balance_as_f);
                 if (goal_balance_as_int > aritmethic.floatToInt(current_balance_as_f) + 10 * amount_as_int) {
@@ -428,10 +434,10 @@ pub fn main() !void {
                 try stdout.flush();
 
                 if (dice_game) {
-                    try betting.labouchere(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.labouchere(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator, init, stdout);
                 } else {
                     limits.set(bottom, 4399);
-                    try betting.labouchere(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.labouchere(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator, init, stdout);
                 }
             },
             '3', 'F', 'f' => {
@@ -440,21 +446,21 @@ pub fn main() !void {
                 const current_balance_as_f = try parseFloat(f128, current_as_str.?);
                 try stdout.writeAll("Enter goal balance: ");
                 try stdout.flush();
-                const goal_balance_str = try net.input(allocator);
+                const goal_balance_str = try net.input(init, allocator);
                 const goal_balance_as_f: f128 = parseFloat(f128, goal_balance_str) catch aritmethic.add(current_balance_as_f, amount, 3);
                 try stdout.writeAll("Enter lower limit: ");
                 try stdout.flush();
-                const limit_balance_str = try net.input(allocator);
+                const limit_balance_str = try net.input(init, allocator);
                 const limit_balance_as_f: f128 = parseFloat(f128, limit_balance_str) catch aritmethic.sub(current_balance_as_f, 10.0 * amount);
                 try stdout.print("Goal: {d:.8} {s}\nLimit: {d:.8} {s}\n", .{ goal_balance_as_f, coin_name, limit_balance_as_f, coin_name });
                 try stdout.writeAll("Starting Fibonacci run.\n");
                 try stdout.flush();
 
                 if (dice_game) {
-                    try betting.fibSeq(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.fibSeq(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator, stdout);
                 } else {
                     limits.set(bottom, 4399);
-                    try betting.fibSeq(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.fibSeq(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator, stdout);
                 }
             },
             '4', 'o', 'O' => {
@@ -463,10 +469,10 @@ pub fn main() !void {
                 try stdout.flush();
 
                 if (dice_game) {
-                    try betting.onePercentHunt(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.onePercentHunt(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator, init, stdout);
                 } else {
                     limits.set(bottom, 94);
-                    try betting.onePercentHunt(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator);
+                    try betting.onePercentHunt(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator, init, stdout);
                 }
             },
             else => {
