@@ -24,6 +24,8 @@ const Io = std.Io;
 const parseInt = std.fmt.parseInt;
 const parseFloat = std.fmt.parseFloat;
 
+const separator = "----------------------------------------";
+
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
     var stdout_buffer: [1024]u8 = undefined;
@@ -137,7 +139,7 @@ pub fn main(init: std.process.Init) !void {
         var bonus_symbol: ?[]const u8 = null;
         var bonus_curr: ?[]const u8 = null;
         if (bonuses.len > 0) {
-            try stdout.print("--" ** 20 ++ "\n", .{});
+            try stdout.print(separator ++ "\n", .{});
             try stdout.print("Wagering Bonus:\n", .{});
             if (bonuses[0].name) |name| {
                 try stdout.print("   Name: {s}\n", .{name});
@@ -179,7 +181,7 @@ pub fn main(init: std.process.Init) !void {
             try stdout.print("   Bonus balance: {s} {s}\n", .{ bonus_curr.?, bonus_symbol.? });
         }
 
-        try stdout.print("--" ** 20 ++ "\n", .{});
+        try stdout.print(separator ++ "\n", .{});
 
         if (user_data.balances) |balances| {
             try stdout.print("User's balances:\n", .{});
@@ -209,12 +211,12 @@ pub fn main(init: std.process.Init) !void {
         }
 
         var tle_active: bool = false;
-        try stdout.print("--" ** 20 ++ "\n", .{});
+        try stdout.print(separator ++ "\n", .{});
         var tle_name: ?[]const u8 = null;
         var tle_hash: ?[]const u8 = null;
         if (user_data.tle.len > 0) {
             try stdout.print("Time Limited Event:\n", .{});
-            try stdout.print("--" ** 20 ++ "\n", .{});
+            try stdout.print(separator ++ "\n", .{});
             if (user_data.tle[0].name) |name| {
                 tle_name = name;
                 try stdout.print("   Name: {s}\n", .{name});
@@ -230,11 +232,11 @@ pub fn main(init: std.process.Init) !void {
                 }
             }
         }
-        try stdout.print("--" ** 20 ++ "\n", .{});
+        try stdout.print(separator ++ "\n", .{});
         try stdout.writeAll("Betting strategies:\n1)[S]ingle bet\n");
         try stdout.writeAll("2)[L]abouchere\n3)[F]ibonacci\n");
         try stdout.writeAll("4)[O]ne percent hunt\n0)[E]xit\n");
-        try stdout.print("--" ** 20 ++ "\n", .{});
+        try stdout.print(separator ++ "\n", .{});
         try stdout.writeAll("Choose betting strategy: ");
         try stdout.flush();
 
@@ -255,7 +257,7 @@ pub fn main(init: std.process.Init) !void {
         }
 
         try stdout.writeAll("Choose Dice Game:\n1)[O]riginal Dice\n2)[R]ange Dice\n");
-        try stdout.print("--" ** 20 ++ "\n", .{});
+        try stdout.print(separator ++ "\n", .{});
         try stdout.writeAll("Choice: ");
         try stdout.flush();
 
@@ -268,7 +270,7 @@ pub fn main(init: std.process.Init) !void {
         for (possible_currencies.items, 1..) |currency, idx| {
             try stdout.print("{d}: {s}\n", .{ idx, currency });
         }
-        try stdout.print("--" ** 20 ++ "\n", .{});
+        try stdout.print(separator ++ "\n", .{});
         try stdout.writeAll("Enter a number for the chosen currency: ");
         try stdout.flush();
         const coin_num_str = try net.input(init, allocator);
@@ -481,8 +483,8 @@ pub fn main(init: std.process.Init) !void {
                 continue :master_loop;
             },
         }
-        try stdout.print("--" ** 20 ++ "\n", .{});
-        try stdout.print("--" ** 20 ++ "\n", .{});
+        try stdout.print(separator ++ "\n", .{});
+        try stdout.print(separator ++ "\n", .{});
         try stdout.flush();
     }
 }
