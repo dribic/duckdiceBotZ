@@ -33,6 +33,10 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
 
+    if (optimize == .fast or optimize == .small) {
+        exe.root_module.strip = true;
+    }
+
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
