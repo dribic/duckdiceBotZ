@@ -18,6 +18,30 @@ const types = @import("types.zig");
 const net = @import("net.zig");
 const aritmethic = @import("arithmetic.zig");
 
+/// Poll user-info and report whether the bonus identified by `bonus_hash` is still active.
+/// On any fetch/parse error returns `true` so a transient network blip never aborts a live run.
+fn bonusStillActive(
+    client: *std.http.Client,
+    allocator: std.mem.Allocator,
+    user_info_url: []const u8,
+    bonus_hash: []const u8,
+) bool {
+    const response_body = net.get(user_info_url, client, allocator) catch return true;
+    var result = std.json.parseFromSlice(types.UserInfoResponse, allocator, response_body, .{ .ignore_unknown_fields = true }) catch return true;
+    defer result.deinit();
+    const user_data = result.value;
+
+    if (user_data.wageringBonuses.len == 0) return false;
+    if (user_data.wageringBonuses[0].hash) |hash| {
+        if (std.mem.eql(u8, hash, bonus_hash)) {
+            if (user_data.wageringBonuses[0].status) |status| {
+                return std.mem.eql(u8, status, "active");
+            }
+        }
+    }
+    return false;
+}
+
 pub fn onePercentHunt(
     url: []const u8,
     client: *std.http.Client,
@@ -32,12 +56,14 @@ pub fn onePercentHunt(
     allocator: std.mem.Allocator,
     init: std.process.Init,
     stdout: *std.Io.Writer,
-) !void {
+    user_info_url: []const u8,
+) !types.RunResult {
     const factor: f128 = if (bet_mode == .main) 104.21 else 102.11;
 
     var current_bet: f128 = bet_value;
     var current_balance: f128 = starting_balance;
     var total_loss: f128 = current_bet;
+    var last_user_balance: ?f128 = null;
 
     for (1..100) |_| {
         var current_bet_as_int: u128 = aritmethic.floatToInt(current_bet);
@@ -53,7 +79,7 @@ pub fn onePercentHunt(
         const cont_str = try net.input(init, allocator);
         const check = std.mem.eql(u8, cont_str, "Y") or std.mem.eql(u8, cont_str, "y");
         if (!check) {
-            return;
+            return .{ .result = .hit_limit, .final_balance = current_balance, .last_user_balance = last_user_balance };
         }
     }
     try stdout.print("You can lose {d:.8} {s}.\n", .{ total_loss, currency });
@@ -62,7 +88,7 @@ pub fn onePercentHunt(
     const cont_str = try net.input(init, allocator);
     const check = std.mem.eql(u8, cont_str, "Y") or std.mem.eql(u8, cont_str, "y");
     if (!check) {
-        return;
+        return .{ .result = .hit_limit, .final_balance = current_balance, .last_user_balance = last_user_balance };
     }
 
     current_bet = bet_value;
@@ -71,7 +97,7 @@ pub fn onePercentHunt(
         if (current_balance < current_bet) {
             try stdout.print("Balance too low!\n", .{});
             try stdout.flush();
-            return;
+            return .{ .result = .out_of_funds, .final_balance = current_balance, .last_user_balance = last_user_balance };
         }
         try stdout.print("Current balance: {d:.8} {s}\n", .{ current_balance, currency });
         try stdout.print("{d}. bet: {d:.8} {s}\n", .{ bet_number, current_bet, currency });
@@ -79,10 +105,25 @@ pub fn onePercentHunt(
 
         current_balance = aritmethic.sub(current_balance, current_bet);
 
+        if (bet_mode == .bonus) {
+            const bonus_hash = spec_hash orelse return .{ .result = .bonus_ended, .final_balance = current_balance, .last_user_balance = last_user_balance };
+            const still_active = bonusStillActive(client, allocator, user_info_url, bonus_hash);
+            if (!still_active) {
+                return .{ .result = .bonus_ended, .final_balance = current_balance, .last_user_balance = last_user_balance };
+            }
+        }
+
         const bet_response = if (dice_game) try placeABet(url, client, currency, current_bet, spec_hash, bet_mode, ".95", is_high, allocator) else try placeARangeDiceBet(url, client, currency, current_bet, spec_hash, bet_mode, limits, true, allocator);
         const bet = bet_response.bet.?;
         const bet_result = bet.result;
         const roll = bet.number.?;
+
+        if (bet_response.user) |u| {
+            if (u.balance) |b| {
+                const parsed = std.fmt.parseFloat(f128, b) catch null;
+                if (parsed) |p| last_user_balance = p;
+            }
+        }
 
         try stdout.print("Roll: {d}\n", .{roll});
         if (!dice_game) {
@@ -93,7 +134,7 @@ pub fn onePercentHunt(
             current_balance = aritmethic.add(current_balance, current_bet, factor);
             try stdout.print("Current balance: {d:.8} {s}\n", .{ current_balance, currency });
             try stdout.flush();
-            return;
+            return .{ .result = .reached_goal, .final_balance = current_balance, .last_user_balance = last_user_balance };
         } else {
             try stdout.writeAll("Failure!☯ \n");
             try stdout.print("Current balance: {d:.8} {s}\n", .{ current_balance, currency });
@@ -104,6 +145,7 @@ pub fn onePercentHunt(
         current_bet_as_int = aritmethic.addOnePercent(current_bet_as_int);
         current_bet = aritmethic.intToFloat(current_bet_as_int);
     }
+    return .{ .result = .hit_limit, .final_balance = current_balance, .last_user_balance = last_user_balance };
 }
 
 pub fn fibSeq(
@@ -121,7 +163,8 @@ pub fn fibSeq(
     limits: types.Limit,
     allocator: std.mem.Allocator,
     stdout: *std.Io.Writer,
-) !void {
+    user_info_url: []const u8,
+) !types.RunResult {
     var fib_list: std.ArrayList(u16) = .empty;
     defer fib_list.deinit(allocator);
 
@@ -129,15 +172,32 @@ pub fn fibSeq(
     try fib_list.appendNTimes(allocator, 1, 2);
 
     var current_balance: f128 = starting_balance;
+    var bet_count: usize = 0;
+    var last_user_balance: ?f128 = null;
 
     master_loop: while (current_balance < goal_balance and current_balance > limit_balance) {
         while (fib_list.items.len > 1) {
             const bet_amount: f128 = bet_value * @as(f128, @floatFromInt(fib_list.items[fib_list.items.len - 1]));
             if (aritmethic.sub(current_balance, bet_amount) < limit_balance) break :master_loop;
+            bet_count += 1;
+            if (bet_mode == .bonus and bet_count % 5 == 0) {
+                const bonus_hash = spec_hash orelse return .{ .result = .bonus_ended, .final_balance = current_balance, .last_user_balance = last_user_balance };
+                const still_active = bonusStillActive(client, allocator, user_info_url, bonus_hash);
+                if (!still_active) {
+                    return .{ .result = .bonus_ended, .final_balance = current_balance, .last_user_balance = last_user_balance };
+                }
+            }
             const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, spec_hash, bet_mode, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, spec_hash, bet_mode, limits, true, allocator);
             const bet = bet_response.bet.?;
             const bet_roll = bet.number.?;
             const bet_result = bet.result;
+
+            if (bet_response.user) |u| {
+                if (u.balance) |b| {
+                    const parsed = std.fmt.parseFloat(f128, b) catch null;
+                    if (parsed) |p| last_user_balance = p;
+                }
+            }
 
             try stdout.print("Current bet amount: {d:.8} {s}\n", .{ bet_amount, currency });
             try stdout.print("Current balance: {d:.8} {s}\nGoal: {d:.8} {s}\n", .{ current_balance, currency, goal_balance, currency });
@@ -152,14 +212,14 @@ pub fn fibSeq(
                 _ = fib_list.pop();
                 try stdout.writeAll("Success!✅\n");
                 try stdout.flush();
-                if (current_balance > goal_balance) return;
+                if (current_balance > goal_balance) return .{ .result = .reached_goal, .final_balance = current_balance, .last_user_balance = last_user_balance };
             } else {
                 current_balance = aritmethic.sub(current_balance, bet_amount);
                 const next_fib = fib_list.items[fib_list.items.len - 2] + fib_list.items[fib_list.items.len - 1];
                 try fib_list.append(allocator, next_fib);
                 try stdout.writeAll("Failure!☯ \n");
                 try stdout.flush();
-                if (current_balance < limit_balance) return;
+                if (current_balance < limit_balance) return .{ .result = .hit_limit, .final_balance = current_balance, .last_user_balance = last_user_balance };
             }
             try stdout.print("Current fibonnacci list:\n[ ", .{});
             for (fib_list.items) |ele| {
@@ -172,6 +232,7 @@ pub fn fibSeq(
         fib_list.clearRetainingCapacity();
         try fib_list.appendNTimes(allocator, 1, 2);
     }
+    return .{ .result = .hit_limit, .final_balance = current_balance, .last_user_balance = last_user_balance };
 }
 
 fn safety(allocator: std.mem.Allocator, bet_slip: *std.ArrayList(f128), base_value: u128) !void {
@@ -213,7 +274,8 @@ pub fn labouchere(
     allocator: std.mem.Allocator,
     init: std.process.Init,
     stdout: *std.Io.Writer,
-) !void {
+    user_info_url: []const u8,
+) !types.RunResult {
     const io = init.io;
     const element_int = aritmethic.floatToInt(element_f);
 
@@ -236,6 +298,8 @@ pub fn labouchere(
     try stdout.flush();
 
     var current_balance: f128 = starting_balance;
+    var bet_count: usize = 0;
+    var last_user_balance: ?f128 = null;
 
     while (current_balance < goal_balance) {
         if (betting_seq.items.len == 0) {
@@ -274,7 +338,16 @@ pub fn labouchere(
         if (bet_amount > current_balance) {
             try stdout.print("Balance too low!\n", .{});
             try stdout.flush();
-            return;
+            return .{ .result = .out_of_funds, .final_balance = current_balance, .last_user_balance = last_user_balance };
+        }
+
+        bet_count += 1;
+        if (bet_mode == .bonus and bet_count % 5 == 0) {
+            const bonus_hash = spec_hash orelse return .{ .result = .bonus_ended, .final_balance = current_balance, .last_user_balance = last_user_balance };
+            const still_active = bonusStillActive(client, allocator, user_info_url, bonus_hash);
+            if (!still_active) {
+                return .{ .result = .bonus_ended, .final_balance = current_balance, .last_user_balance = last_user_balance };
+            }
         }
 
         const bet_response = if (dice_game) try placeABet(url, client, currency, bet_amount, spec_hash, bet_mode, "44", is_high, allocator) else try placeARangeDiceBet(url, client, currency, bet_amount, spec_hash, bet_mode, limits, true, allocator);
@@ -283,6 +356,13 @@ pub fn labouchere(
         total_value_betted = aritmethic.add(total_value_betted, bet_amount, 1.0);
         const bet_roll = bet.number.?;
         const bet_result = bet.result;
+
+        if (bet_response.user) |u| {
+            if (u.balance) |b| {
+                const parsed = std.fmt.parseFloat(f128, b) catch null;
+                if (parsed) |p| last_user_balance = p;
+            }
+        }
 
         if (!dice_game) {
             try stdout.print("Range: {d}-{d}\n", .{ limits.bottom(), limits.top() });
@@ -327,6 +407,7 @@ pub fn labouchere(
         try stdout.print("]\n", .{});
         try stdout.flush();
     }
+    return .{ .result = .reached_goal, .final_balance = current_balance, .last_user_balance = last_user_balance };
 }
 
 pub fn placeABet(

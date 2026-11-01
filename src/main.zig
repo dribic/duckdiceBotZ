@@ -114,6 +114,9 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
 
     // Master loop
+    var bonus_curr: ?[]const u8 = null;
+    var prev_bonus_symbol: ?[]const u8 = null;
+    var prev_bonus_hash: ?[]const u8 = null;
     master_loop: while (true) {
         const response_body = try net.get(user_info_url, &client, allocator);
 
@@ -137,7 +140,6 @@ pub fn main(init: std.process.Init) !void {
         var bonus_active: bool = false;
         var bonus_hash: ?[]const u8 = null;
         var bonus_symbol: ?[]const u8 = null;
-        var bonus_curr: ?[]const u8 = null;
         if (bonuses.len > 0) {
             try stdout.print(separator ++ "\n", .{});
             try stdout.print("Wagering Bonus:\n", .{});
@@ -163,22 +165,40 @@ pub fn main(init: std.process.Init) !void {
             }
             if (bonuses[0].margin) |margin| {
                 try stdout.print("   Margin: {s} {s}\n", .{ margin, bonus_symbol.? });
-                const max_bonus_win = try parseFloat(f128, margin);
-                try stdout.print("   Max win: {d:.8} {s}\n", .{ max_bonus_win * 3.0, bonus_symbol.? });
+                try stdout.print("   For max win, check the website.\n", .{});
             }
 
-            const bonus_minimum: u128 = if (std.mem.eql(u8, bonus_symbol.?, "BTC")) 1 else cg.calculateMinimum(init, allocator, &client, bonus_symbol.?) catch |err| blk: {
-                try stdout.print(
-                    "Minimum couldn't be calculated for {s}, because of {any}\nSetting minimum to 1.\n",
-                    .{ bonus_symbol.?, err },
-                );
+            // Reset carried balance if bonus changed or is no longer active
+            const bonus_changed = !std.mem.eql(u8, bonus_symbol orelse "", prev_bonus_symbol orelse "") or !std.mem.eql(u8, bonus_hash orelse "", prev_bonus_hash orelse "");
+            if (bonus_changed or !bonus_active) {
+                bonus_curr = null;
+                prev_bonus_symbol = bonus_symbol;
+                prev_bonus_hash = bonus_hash;
+            }
+
+            if (bonus_active and bonus_hash != null and bonus_symbol != null and bonus_curr == null) {
+                try stdout.print("   Enter your starting bonus balance for {s}: ", .{bonus_symbol.?});
                 try stdout.flush();
-                break :blk 1;
-            };
-            const bonus_minimum_as_f128 = aritmethic.intToFloat(bonus_minimum);
-            const bonus_info_bet = try betting.placeABet(og_dice_url, &client, bonus_symbol.?, bonus_minimum_as_f128, bonus_hash.?, types.betMode.bonus, "94", true, allocator);
-            bonus_curr = bonus_info_bet.user.?.balance.?;
-            try stdout.print("   Bonus balance: {s} {s}\n", .{ bonus_curr.?, bonus_symbol.? });
+                const bonus_balance_input = try net.input(init, allocator);
+                const bonus_balance_parsed = parseFloat(f128, bonus_balance_input) catch 0.0;
+                if (bonus_balance_parsed > 0) {
+                    bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{bonus_balance_parsed});
+                    try stdout.print("   Tracking bonus balance: {s} {s}\n", .{bonus_curr.?, bonus_symbol.?});
+                } else {
+                    try stdout.print("   Invalid balance entered, bonus tracking disabled.\n", .{});
+                }
+            } else if (bonus_active and bonus_curr != null) {
+                try stdout.print("   Carried bonus balance: {s} {s}\n", .{bonus_curr.?, bonus_symbol.?});
+            } else {
+                try stdout.print("   Bonus not active; skipping balance tracking.\n", .{});
+            }
+        } else {
+            // No bonuses at all; clear carried state
+            if (bonus_curr != null) {
+                bonus_curr = null;
+                prev_bonus_symbol = null;
+                prev_bonus_hash = null;
+            }
         }
 
         try stdout.print(separator ++ "\n", .{});
@@ -348,7 +368,13 @@ pub fn main(init: std.process.Init) !void {
 
         var current_as_str: ?[]const u8 = null;
         if (bet_mode == .bonus) {
-            current_as_str = bonus_curr.?;
+            if (bonus_curr) |bc| {
+                current_as_str = bc;
+            } else {
+                try stdout.print("Bonus balance unavailable, cannot bet in bonus mode.\n", .{});
+                try stdout.flush();
+                continue :master_loop;
+            }
         } else {
             for (balances) |balance_item| {
                 if (std.mem.eql(u8, coin_name, balance_item.currency.?)) {
@@ -430,10 +456,24 @@ pub fn main(init: std.process.Init) !void {
                 try stdout.flush();
 
                 if (dice_game) {
-                    try betting.labouchere(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator, init, stdout);
+                    const labouchere_run = try betting.labouchere(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator, init, stdout, user_info_url);
+                    if (bet_mode == .bonus) {
+                        if (labouchere_run.last_user_balance) |bal| {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{bal});
+                        } else {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{labouchere_run.final_balance});
+                        }
+                    }
                 } else {
                     limits.set(bottom, 4399);
-                    try betting.labouchere(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator, init, stdout);
+                    const labouchere_run = try betting.labouchere(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, is_high, dice_game, limits, allocator, init, stdout, user_info_url);
+                    if (bet_mode == .bonus) {
+                        if (labouchere_run.last_user_balance) |bal| {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{bal});
+                        } else {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{labouchere_run.final_balance});
+                        }
+                    }
                 }
             },
             '3', 'F', 'f' => {
@@ -453,10 +493,24 @@ pub fn main(init: std.process.Init) !void {
                 try stdout.flush();
 
                 if (dice_game) {
-                    try betting.fibSeq(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator, stdout);
+                    const fib_run = try betting.fibSeq(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator, stdout, user_info_url);
+                    if (bet_mode == .bonus) {
+                        if (fib_run.last_user_balance) |bal| {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{bal});
+                        } else {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{fib_run.final_balance});
+                        }
+                    }
                 } else {
                     limits.set(bottom, 4399);
-                    try betting.fibSeq(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator, stdout);
+                    const fib_run = try betting.fibSeq(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, goal_balance_as_f, limit_balance_as_f, is_high, dice_game, limits, allocator, stdout, user_info_url);
+                    if (bet_mode == .bonus) {
+                        if (fib_run.last_user_balance) |bal| {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{bal});
+                        } else {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{fib_run.final_balance});
+                        }
+                    }
                 }
             },
             '4', 'o', 'O' => {
@@ -465,10 +519,24 @@ pub fn main(init: std.process.Init) !void {
                 try stdout.flush();
 
                 if (dice_game) {
-                    try betting.onePercentHunt(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator, init, stdout);
+                    const hunt_run = try betting.onePercentHunt(og_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator, init, stdout, user_info_url);
+                    if (bet_mode == .bonus) {
+                        if (hunt_run.last_user_balance) |bal| {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{bal});
+                        } else {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{hunt_run.final_balance});
+                        }
+                    }
                 } else {
                     limits.set(bottom, 94);
-                    try betting.onePercentHunt(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator, init, stdout);
+                    const hunt_run = try betting.onePercentHunt(range_dice_url, &client, coin_name, amount, spec_hash, bet_mode, current_balance_as_f, is_high, dice_game, limits, allocator, init, stdout, user_info_url);
+                    if (bet_mode == .bonus) {
+                        if (hunt_run.last_user_balance) |bal| {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{bal});
+                        } else {
+                            bonus_curr = try std.fmt.allocPrint(allocator, "{d:.8}", .{hunt_run.final_balance});
+                        }
+                    }
                 }
             },
             else => {

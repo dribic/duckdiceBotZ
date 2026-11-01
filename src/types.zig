@@ -68,6 +68,22 @@ pub const betMode = enum {
     bonus,
 };
 
+/// Outcome of a betting-strategy run.
+pub const BetRunResult = enum {
+    reached_goal,
+    hit_limit,
+    bonus_ended,
+    out_of_funds,
+};
+
+/// Result of a betting-strategy run: why it stopped, the final balance,
+/// and the last user balance seen from the API (for bonus mode sync).
+pub const RunResult = struct {
+    result: BetRunResult,
+    final_balance: f128,
+    last_user_balance: ?f128,
+};
+
 //---
 /// Structs for the Original Dice / Bet Make endpoint's request.
 pub const OriginalDicePlayRequest = struct {
