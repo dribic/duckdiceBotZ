@@ -193,8 +193,8 @@ pub fn main(init: std.process.Init) !void {
                 if (balance.main) |main_balance| {
                     try stdout.print("    Main balance: {s}\n", .{main_balance});
                 }
-                if (balance.faucet) |faucet_balance| {
-                    try stdout.print("    Faucet balance: {s}\n", .{faucet_balance});
+                if (balance.affiliate) |affiliate_balance| {
+                    try stdout.print("    Affiliate balance: {s}\n", .{affiliate_balance});
                 }
             }
         } else {
@@ -296,22 +296,20 @@ pub fn main(init: std.process.Init) !void {
         if (std.mem.eql(u8, coin_name, "DECOY")) {
             bet_mode = .main;
         } else {
-            try stdout.writeAll("Choose a mode:\n1)[M]ain\n2)[F]aucet\n");
+            try stdout.writeAll("Choose a mode:\n1)[M]ain\n");
             if (tle_active) {
-                try stdout.print("3)[T]ime Limited Event: {s}\n", .{tle_name.?});
+                try stdout.print("2)[T]ime Limited Event: {s}\n", .{tle_name.?});
             }
             if (bonus_active) {
-                try stdout.print("4)[B]onus Event\n", .{});
+                try stdout.print("3)[B]onus Event\n", .{});
             }
             try stdout.writeAll("Choose: ");
             try stdout.flush();
             const input_f = try net.input(init, allocator);
-            if (std.mem.eql(u8, input_f, "2") or std.mem.eql(u8, input_f, "f") or std.mem.eql(u8, input_f, "F")) {
-                bet_mode = .faucet;
-            } else if ((std.mem.eql(u8, input_f, "3") or std.mem.eql(u8, input_f, "t") or std.mem.eql(u8, input_f, "T")) and tle_active) {
+            if ((std.mem.eql(u8, input_f, "2") or std.mem.eql(u8, input_f, "t") or std.mem.eql(u8, input_f, "T")) and tle_active) {
                 bet_mode = .tle;
                 spec_hash = tle_hash.?;
-            } else if ((std.mem.eql(u8, input_f, "4") or std.mem.eql(u8, input_f, "b") or std.mem.eql(u8, input_f, "B")) and bonus_active) {
+            } else if ((std.mem.eql(u8, input_f, "3") or std.mem.eql(u8, input_f, "b") or std.mem.eql(u8, input_f, "B")) and bonus_active) {
                 bet_mode = .bonus;
                 spec_hash = bonus_hash.?;
             }
@@ -354,11 +352,7 @@ pub fn main(init: std.process.Init) !void {
         } else {
             for (balances) |balance_item| {
                 if (std.mem.eql(u8, coin_name, balance_item.currency.?)) {
-                    if (bet_mode == .faucet) {
-                        current_as_str = balance_item.faucet;
-                    } else {
-                        current_as_str = balance_item.main;
-                    }
+                    current_as_str = balance_item.main;
                     break;
                 }
             }

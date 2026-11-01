@@ -44,7 +44,7 @@ pub const WageredItem = struct {
 pub const BalanceItem = struct {
     currency: ?[]const u8 = null,
     main: ?[]const u8 = null,
-    faucet: ?[]const u8 = null,
+    affiliate: ?[]const u8 = null,
 };
 
 pub const WageringBonus = struct {
@@ -64,7 +64,6 @@ pub const TleItem = struct {
 
 pub const betMode = enum {
     main,
-    faucet,
     tle,
     bonus,
 };
@@ -82,8 +81,6 @@ pub const OriginalDicePlayRequest = struct {
     amount: []const u8,
     /// User's wagering bonus hash (optional).
     userWageringBonusHash: ?[]const u8 = null,
-    /// Faucet mode toggle (optional).
-    faucet: ?bool = null,
     /// TLE unique hash (optional).
     tleHash: ?[]const u8 = null,
 };
@@ -132,7 +129,7 @@ pub const Bet = struct {
     nonce: ?i64 = null,
     /// Timestamp when the bet was created.
     created: ?i64 = null,
-    /// Game mode, e.g., "main" or "faucet".
+    /// Game mode, e.g., "main" or "bonus".
     gameMode: ?[]const u8 = null,
     /// Details about the game.
     game: ?Game = null,
@@ -224,8 +221,6 @@ pub const RangeDicePlayRequest = struct {
     amount: []const u8,
     /// User's wagering bonus hash (optional).
     userWageringBonusHash: ?[]const u8 = null,
-    /// Faucet mode toggle (optional).
-    faucet: ?bool = null,
     /// TLE unique hash (optional).
     tleHash: ?[]const u8 = null,
 };
@@ -248,6 +243,4 @@ pub const CurrencyStatsResponse = struct {
 pub const Balances = struct {
     /// User's main balance in the currency, as a string.
     main: ?[]const u8 = null,
-    /// User's faucet balance in the currency, as a string.
-    faucet: ?[]const u8 = null,
 };

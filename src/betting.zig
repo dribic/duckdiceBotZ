@@ -344,7 +344,6 @@ pub fn placeABet(
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
     const bet = switch (bet_mode) {
-        .faucet => types.OriginalDicePlayRequest{ .faucet = true, .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance },
         .main => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance },
         .tle => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance, .tleHash = spec_hash.? },
         .bonus => types.OriginalDicePlayRequest{ .amount = amount, .symbol = currency, .isHigh = is_high, .chance = chance, .userWageringBonusHash = spec_hash.? },
@@ -380,7 +379,6 @@ pub fn placeARangeDiceBet(
     const amount = try std.fmt.bufPrint(&buf, "{d:.8}", .{amount_f});
 
     const bet = switch (bet_mode) {
-        .faucet => types.RangeDicePlayRequest{ .faucet = true, .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range },
         .main => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range },
         .tle => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range, .tleHash = spec_hash.? },
         .bonus => types.RangeDicePlayRequest{ .amount = amount, .symbol = currency, .isIn = is_in, .range = &limits.range, .userWageringBonusHash = spec_hash.? },
